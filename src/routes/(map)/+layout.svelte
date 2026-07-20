@@ -38,8 +38,11 @@
 		try {
 			const res = await fetch('/api/status');
 			if (res.ok) {
-				const { conditions } = (await res.json()) as { conditions: typeof appState.statusCounts };
-				appState.statusCounts = conditions;
+				const data = (await res.json()) as { conditions?: typeof appState.statusCounts };
+				// Guard the shape: a malformed/empty response must never make statusCounts
+				// undefined — MapCanvas's $effect and ConditionCard both index it, so an
+				// undefined here would crash the whole map render on the next poll.
+				appState.statusCounts = data?.conditions ?? {};
 			}
 		} catch {
 			// non-fatal: status is a progressive enhancement over static data
