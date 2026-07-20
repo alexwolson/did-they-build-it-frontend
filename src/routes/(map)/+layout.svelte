@@ -112,8 +112,12 @@
 			const c = m.getCenter();
 			mapCenter = { lat: c.lat, lng: c.lng };
 		});
-		g.on('geolocate', () => (listOpen = true));
-		g.on('error', () => (listOpen = true)); // denied/unavailable → list still works
+		// NOTE: do NOT open the list from geolocate/error events. With
+		// trackUserLocation the geolocate event fires on every position update,
+		// so opening here re-opened the list on each tracking tick and made it
+		// impossible to dismiss. nearMe() already opens the list on the user's
+		// tap (and falls back to map-centre sorting when a fix isn't available);
+		// the open list re-sorts live via the reactive `origin` as userPos updates.
 	}}
 />
 
