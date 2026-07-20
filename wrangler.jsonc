@@ -12,7 +12,7 @@
 		{
 			"binding": "DB",
 			"database_name": "did-they-build-it-db",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "df836e7e-cb54-4665-9bba-7ae2a55104c7",
 			"migrations_dir": "migrations"
 		}
 	],
