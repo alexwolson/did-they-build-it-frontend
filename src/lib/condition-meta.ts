@@ -1,12 +1,18 @@
+import type { Component } from 'svelte';
 import type { ConditionType } from './types';
+import Bicycle from 'phosphor-svelte/lib/Bicycle';
+import Tree from 'phosphor-svelte/lib/Tree';
+import Palette from 'phosphor-svelte/lib/Palette';
+import Armchair from 'phosphor-svelte/lib/Armchair';
+import SquaresFour from 'phosphor-svelte/lib/SquaresFour';
 
-// Shared presentation metadata for condition types — emoji + human label.
-// Centralized here so later components (map markers, condition lists, filters)
-// don't each inline their own copy of this mapping.
-export const CONDITION_META: Record<ConditionType, { emoji: string; label: string }> = {
-	landscaping: { emoji: '🌳', label: 'Landscaping' },
-	bike_parking: { emoji: '🚲', label: 'Bike parking' },
-	public_art: { emoji: '🎨', label: 'Public art' },
-	street_furniture: { emoji: '🪑', label: 'Street furniture' },
-	pavers: { emoji: '🧱', label: 'Pavers' }
+// Shared presentation for condition types — a Phosphor icon (no emoji, app-wide)
+// plus a human label. Icons are Svelte components; render with weight="duotone".
+// Centralized so map markers, condition cards, and lists all use one source.
+export const CONDITION_META: Record<ConditionType, { label: string; icon: Component }> = {
+	landscaping: { label: 'Landscaping', icon: Tree },
+	bike_parking: { label: 'Bike parking', icon: Bicycle },
+	public_art: { label: 'Public art', icon: Palette },
+	street_furniture: { label: 'Street furniture', icon: Armchair },
+	pavers: { label: 'Pavers', icon: SquaresFour }
 };

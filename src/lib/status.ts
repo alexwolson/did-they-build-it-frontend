@@ -2,11 +2,12 @@ import type { SiteProperties, StatusCounts } from '$lib/types';
 
 export type RingState = 'none' | 'present' | 'absent' | 'mixed';
 
+// Civic Fresh status colours (match app.css tokens --none/--present/--absent/--unclear).
 export const RING_COLORS: Record<RingState, string> = {
-	none: '#94a3b8',
+	none: '#9aa8a2',
 	present: '#16a34a',
-	absent: '#dc2626',
-	mixed: '#d97706'
+	absent: '#e5484d',
+	mixed: '#f5a623'
 };
 
 export function siteRing(

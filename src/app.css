@@ -1,24 +1,42 @@
+/* "Civic Fresh" design system — flat (no shadows/glows/gradients). */
 :root {
-	--bg: #f1f6f9;
+	--paper: #eff6f1; /* pale drafting-paper base */
 	--surface: #ffffff;
-	--ink: #0f2436;
-	--ink-soft: #475569;
-	--brand: #0d9488;
-	--brand-deep: #0f766e;
-	--present: #16a34a;
-	--absent: #e11d48;
-	--unclear: #f59e0b;
+	--ink: #12322b; /* deep civic ink */
+	--ink-soft: #5c7268;
+	--brand: #0fa98e; /* civic teal */
+	--accent: #ff7a4d; /* warm coral */
+	--present: #16a34a; /* it's there */
+	--absent: #e5484d; /* not there */
+	--unclear: #f5a623; /* mixed / not sure */
+	--none: #9aa8a2; /* not checked yet */
+	--line: #12322b1f; /* flat hairline for delineation (no shadows) */
 	--radius: 14px;
-	--shadow: 0 8px 30px rgb(15 23 42 / 0.14);
+	--font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--font-disp: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
 }
-* { box-sizing: border-box; }
-/* overscroll-behavior must be on html too — the viewport's overscroll (pull-to-
-   refresh / bounce) propagates from the root element, so setting it only on body
-   left the whole-page overscroll active. */
-html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+* {
+	box-sizing: border-box;
+}
+html,
 body {
-	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-	color: var(--ink);
-	background: var(--bg);
+	margin: 0;
+	height: 100%;
+	overscroll-behavior: none; /* viewport pull-to-refresh off */
 }
-button { font: inherit; }
+body {
+	font-family: var(--font-body);
+	color: var(--ink);
+	background: var(--paper);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+button {
+	font: inherit;
+}
+/* Fraunces display voice — wonky-warm serif. Apply .disp or use --font-disp. */
+.disp {
+	font-family: var(--font-disp);
+	font-variation-settings: 'opsz' 40, 'SOFT' 50, 'WONK' 1;
+	font-weight: 600;
+}

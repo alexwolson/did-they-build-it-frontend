@@ -67,7 +67,7 @@
 >
 	<div class="grab"></div>
 	{#if !site}
-		<h2>Site not found</h2>
+		<h2 class="not-found">Site not found</h2>
 		<p>This link doesn't match a site in the current dataset.</p>
 		<button class="back" onclick={close}>← Back to the map</button>
 	{:else}
@@ -99,9 +99,9 @@
 		max-height: 82dvh;
 		overflow-y: auto;
 		overscroll-behavior: contain; /* internal scroll never chains to the page */
-		background: var(--bg);
+		background: var(--paper);
 		border-radius: var(--radius) var(--radius) 0 0;
-		box-shadow: var(--shadow);
+		border-top: 1px solid var(--line);
 		padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
 		animation: rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1); /* transform-only: compositor */
 		will-change: transform;
@@ -128,20 +128,33 @@
 		width: 40px;
 		height: 4px;
 		border-radius: 2px;
-		background: #cbd5e1;
+		background: var(--line);
 		margin: 4px auto 10px;
 	}
 	h2 {
 		margin: 0;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 72, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		font-size: 1.5rem;
+		color: var(--ink);
+	}
+	.not-found {
 		font-size: 1.3rem;
 	}
 	.meta {
 		color: var(--ink-soft);
 		margin: 4px 0 0;
-		font-size: 0.9rem;
+		font-size: 0.8rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
 	}
 	.promise {
-		font-weight: 700;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		color: var(--ink);
 		margin: 16px 0 8px;
 	}
 	.back {
@@ -150,5 +163,6 @@
 		border: 0;
 		border-radius: var(--radius);
 		padding: 12px 18px;
+		cursor: pointer;
 	}
 </style>

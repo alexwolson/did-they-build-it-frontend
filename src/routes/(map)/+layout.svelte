@@ -6,6 +6,10 @@
 	import NearbyList from '$lib/components/NearbyList.svelte';
 	import Toast from '$lib/components/Toast.svelte';
 	import { appState } from '$lib/app-state.svelte';
+	import List from 'phosphor-svelte/lib/List';
+	import NavigationArrow from 'phosphor-svelte/lib/NavigationArrow';
+	import SunHorizon from 'phosphor-svelte/lib/SunHorizon';
+	import HandTap from 'phosphor-svelte/lib/HandTap';
 	import { createQueue, postSubmission } from '$lib/queue';
 	import type { SitesCollection } from '$lib/types';
 
@@ -142,13 +146,23 @@
 />
 
 <header class="brand">Did They Build It?</header>
-<button class="list-toggle" onclick={() => (listOpen = !listOpen)} aria-label="List of nearby sites">☰ List</button>
-<button class="fab" onclick={nearMe}>📍 Near me</button>
+{#if appState.totalChecked > 0}
+	<div class="counter">
+		<SunHorizon weight="duotone" size={18} />
+		{appState.totalChecked} promises checked tonight
+	</div>
+{/if}
+<button class="list-toggle" onclick={() => (listOpen = !listOpen)} aria-label="List of nearby sites">
+	<List weight="bold" size={18} /> List
+</button>
+<button class="fab" onclick={nearMe}>
+	<NavigationArrow weight="bold" size={18} /> Near me
+</button>
 <Toast />
 
 {#if showHint}
 	<button class="hint" onclick={dismissHint}>
-		<span class="hint-emoji">👆</span> Tap a pin to see what was promised
+		<HandTap weight="bold" size={18} class="hint-icon" /> Tap a pin to see what was promised
 	</button>
 {/if}
 
@@ -157,24 +171,78 @@
 {@render children()}
 
 <style>
-	.brand { position: fixed; top: 12px; left: 12px; background: var(--surface); padding: 8px 14px; border-radius: var(--radius); box-shadow: var(--shadow); font-weight: 700; }
-	.list-toggle { position: fixed; top: 12px; right: 12px; background: var(--surface); border: 0; padding: 8px 14px; border-radius: var(--radius); box-shadow: var(--shadow); cursor: pointer; }
+	.brand {
+		position: fixed;
+		top: 12px;
+		left: 12px;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		padding: 8px 14px;
+		border-radius: var(--radius);
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
+		font-weight: 700;
+		color: var(--ink);
+		z-index: 30;
+	}
+	.counter {
+		position: fixed;
+		top: 58px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--brand);
+		color: #fff;
+		border-radius: 999px;
+		padding: 8px 16px;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		font-size: 0.9rem;
+		white-space: nowrap;
+		z-index: 25;
+	}
+	.list-toggle {
+		position: fixed;
+		top: 12px;
+		right: 12px;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		padding: 8px 14px;
+		border-radius: var(--radius);
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		color: var(--ink);
+		cursor: pointer;
+		z-index: 30;
+	}
 	.fab {
 		position: fixed;
 		right: 16px;
 		bottom: calc(24px + env(safe-area-inset-bottom));
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		background: var(--brand);
 		color: #fff;
 		border: 0;
 		border-radius: 999px;
 		padding: 16px 22px;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 36, 'SOFT' 50, 'WONK' 1;
 		font-size: 1.05rem;
 		font-weight: 700;
-		box-shadow: var(--shadow);
 		cursor: pointer;
 		transition: transform 120ms ease;
+		z-index: 30;
 	}
-	.fab:active { transform: scale(0.94); }
+	.fab:active { transform: scale(0.96); }
 
 	/* First-run tap hint — centred low over the map, above the FAB, tap to dismiss. */
 	.hint {
@@ -191,17 +259,18 @@
 		border: 0;
 		border-radius: 999px;
 		padding: 12px 18px;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
 		font-size: 0.95rem;
 		font-weight: 600;
 		text-align: left;
 		line-height: 1.25;
-		box-shadow: var(--shadow);
 		cursor: pointer;
 		z-index: 40;
 		animation: hint-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1);
 	}
-	.hint-emoji {
-		font-size: 1.15rem;
+	.hint :global(.hint-icon) {
+		flex-shrink: 0;
 		animation: hint-bob 1.4s ease-in-out infinite;
 	}
 	@keyframes hint-in {
@@ -223,7 +292,7 @@
 		.hint {
 			animation: none;
 		}
-		.hint-emoji {
+		.hint :global(.hint-icon) {
 			animation: none;
 		}
 	}

@@ -25,12 +25,13 @@
 		<ul>
 			{#each sorted as { site, distanceM } (site.properties.siteId)}
 				{@const p = site.properties}
+				{@const Icon = CONDITION_META[p.conditions[0].type].icon}
 				<li>
 					<button onclick={() => { open = false; onSelect(p.siteId); }}>
 						<span class="dist">{formatDistance(distanceM)}</span>
 						<span class="addr">{p.address}</span>
 						<span class="types">
-							{CONDITION_META[p.conditions[0].type].emoji}
+							<Icon size={18} weight="duotone" color="var(--brand)" />
 							{#if p.conditions.length > 1}+{p.conditions.length - 1} more{/if}
 						</span>
 					</button>
@@ -47,16 +48,23 @@
 		inset: auto 0 0 0;
 		max-height: 70dvh;
 		overflow-y: auto;
-		background: var(--surface);
+		background: var(--paper);
 		border-radius: var(--radius) var(--radius) 0 0;
-		box-shadow: var(--shadow);
+		border-top: 1px solid var(--line);
 		padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
 		animation: rise 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
 	}
 	@keyframes rise { from { transform: translateY(100%); } to { transform: translateY(0); } }
 	@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
-	.grab { width: 40px; height: 4px; border-radius: 2px; background: #cbd5e1; margin: 4px auto 10px; }
-	h2 { font-size: 1rem; margin: 0 0 8px; color: var(--ink-soft); }
+	.grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 10px; }
+	h2 {
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 30, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		font-size: 1.1rem;
+		margin: 0 0 8px;
+		color: var(--ink);
+	}
 	ul { list-style: none; margin: 0; padding: 0; }
 	li button {
 		display: grid;
@@ -67,11 +75,11 @@
 		padding: 12px 4px;
 		background: none;
 		border: 0;
-		border-bottom: 1px solid #e2e8f0;
+		border-bottom: 1px solid var(--line);
 		text-align: left;
 		cursor: pointer;
 	}
 	.dist { color: var(--brand); font-weight: 700; font-variant-numeric: tabular-nums; }
-	.addr { font-weight: 600; }
-	.types { color: var(--ink-soft); font-size: 0.85rem; }
+	.addr { font-family: var(--font-disp); font-variation-settings: 'opsz' 24, 'SOFT' 50, 'WONK' 1; font-weight: 600; color: var(--ink); }
+	.types { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 0.85rem; }
 </style>
