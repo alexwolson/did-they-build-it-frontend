@@ -12,9 +12,12 @@ const site = (types: string[]): SiteProperties => ({
 	conditions: types.map((t, i) => ({
 		key: `k${i}`,
 		type: t as SiteProperties['conditions'][0]['type'],
+		feature: null,
+		prompt: null,
 		description: '',
 		rawText: '',
-		sourceUrl: ''
+		sourceUrl: '',
+		source: null
 	}))
 });
 
