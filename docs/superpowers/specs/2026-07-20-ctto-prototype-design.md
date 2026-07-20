@@ -83,7 +83,8 @@ repo.
 
 ```sql
 CREATE TABLE devices (
-  id TEXT PRIMARY KEY,            -- random UUID minted client-side, localStorage
+  id TEXT PRIMARY KEY,            -- random UUID minted client-side, localStorage;
+                                  -- server upserts the row on first submission
   nickname TEXT,                  -- NULL for now; nickname/auth attaches here later
   created_at TEXT NOT NULL
 );
@@ -158,8 +159,8 @@ Proportionate to a one-day build:
 
 ## Deploy & demo ops
 
-- `*.workers.dev` URL (custom domain later). Build includes a printable QR-code
-  page for scan-and-go at the venue.
+- `*.workers.dev` URL (custom domain later). The app serves a printable QR-code
+  page at `/qr` for scan-and-go at the venue.
 - Data refresh before demo if the pipeline lands more: rerun ETL, redeploy.
 - Post-demo analysis: `wrangler d1 export` of submissions; consider showing the
   crowd their aggregate at the end of the night.
