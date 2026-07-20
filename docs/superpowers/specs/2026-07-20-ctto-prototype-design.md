@@ -157,6 +157,31 @@ Proportionate to a one-day build:
 - Component test: verify-card state machine (tap → submitted → update verdict).
 - Map + field behavior: manual, on real phones, today.
 
+## Repo policy & CI (starting principle)
+
+The repo lives on GitHub with a **protected `main`**: changes land via PR, and
+PRs are gated on required status checks. This is a founding principle, not a
+later hardening step — the performance budget is enforced from the first
+feature PR onward.
+
+Required checks:
+
+- **Lighthouse CI** (`@lhci/cli` in GitHub Actions): builds the app, serves it
+  locally, runs Lighthouse with mobile emulation (throttled CPU + 4G — matches
+  the mid-range-Android target), `numberOfRuns: 3`, asserts on the **median**.
+  Assertion threshold: performance ≥ 85 (margin under the ≥ 90 target to absorb
+  shared-runner noise; the target itself stays 90 and is checked against the
+  deployed app manually).
+- **Bundle-size gate**: deterministic check that total shipped JS ≤ 400 KB gzip.
+  Exact and never flaky — this, not Lighthouse, is the enforcement mechanism for
+  the size budget.
+- **Tests**: vitest suite (ETL, API, verify-card state machine).
+
+Deploys: merge to `main` → GitHub Actions deploys via `wrangler deploy`
+(Cloudflare API token in repo secrets). Bootstrap exception: today's initial
+scaffold commits land directly on `main` before protection is switched on;
+everything after runs through PRs.
+
 ## Deploy & demo ops
 
 - `*.workers.dev` URL (custom domain later). The app serves a printable QR-code
@@ -187,3 +212,5 @@ Proportionate to a one-day build:
 | Map | MapLibre GL JS + OpenFreeMap vector tiles |
 | Promise data | Static GeoJSON on CDN; only submissions/status are dynamic |
 | Condition identity | Hash of (aic_ref, condition_type, raw_text) |
+| Repo policy | GitHub, protected main, PRs gated on Lighthouse CI + size + tests |
+| Deploys | Auto-deploy to Cloudflare on merge to main |
