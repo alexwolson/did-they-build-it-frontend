@@ -1,13 +1,36 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type maplibregl from 'maplibre-gl';
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
 	import NearbyList from '$lib/components/NearbyList.svelte';
+	import Toast from '$lib/components/Toast.svelte';
 	import { appState } from '$lib/app-state.svelte';
+	import { createQueue, postSubmission } from '$lib/queue';
 
 	let { data, children } = $props();
 	$effect.pre(() => {
 		appState.sites = data.sites.features;
+	});
+
+	// Offline-safe retry queue: flush on load, on reconnect, and periodically —
+	// a flaky venue network never loses a report (shared KEY with ConditionCard's
+	// own lazily-built queue, so both drain the same persisted localStorage list).
+	onMount(() => {
+		const queue = createQueue({
+			storage: localStorage,
+			post: postSubmission(fetch),
+			onChange: (n) => (appState.pendingSync = n)
+		});
+		appState.pendingSync = queue.pending();
+		queue.flush();
+		const onOnline = () => queue.flush();
+		addEventListener('online', onOnline);
+		const interval = setInterval(() => queue.pending() > 0 && queue.flush(), 15000);
+		return () => {
+			removeEventListener('online', onOnline);
+			clearInterval(interval);
+		};
 	});
 
 	let geolocate: maplibregl.GeolocateControl | undefined;
@@ -47,6 +70,7 @@
 <header class="brand">Did They Build It?</header>
 <button class="list-toggle" onclick={() => (listOpen = !listOpen)} aria-label="List of nearby sites">☰ List</button>
 <button class="fab" onclick={nearMe}>📍 Near me</button>
+<Toast />
 
 <NearbyList bind:open={listOpen} {origin} onSelect={(siteId) => goto(`/site/${siteId}`)} />
 
