@@ -13,6 +13,22 @@
 		appState.sites = data.sites.features;
 	});
 
+	// Live community status: fetch aggregate verdict counts and merge into
+	// appState so MapCanvas's $effect recolors pin rings and ConditionCard's
+	// counts update. Non-fatal on failure — status is a progressive
+	// enhancement over the static site data, never a hard dependency.
+	async function refreshStatus() {
+		try {
+			const res = await fetch('/api/status');
+			if (res.ok) {
+				const { conditions } = (await res.json()) as { conditions: typeof appState.statusCounts };
+				appState.statusCounts = conditions;
+			}
+		} catch {
+			// non-fatal: status is a progressive enhancement over static data
+		}
+	}
+
 	// Offline-safe retry queue: flush on load, on reconnect, and periodically —
 	// a flaky venue network never loses a report (shared KEY with ConditionCard's
 	// own lazily-built queue, so both drain the same persisted localStorage list).
@@ -20,16 +36,28 @@
 		const queue = createQueue({
 			storage: localStorage,
 			post: postSubmission(fetch),
-			onChange: (n) => (appState.pendingSync = n)
+			onChange: (n) => (appState.pendingSync = n),
+			onSent: refreshStatus
 		});
 		appState.pendingSync = queue.pending();
 		queue.flush();
 		const onOnline = () => queue.flush();
 		addEventListener('online', onOnline);
 		const interval = setInterval(() => queue.pending() > 0 && queue.flush(), 15000);
+
+		// ConditionCard builds its own queue instance (decoupled from this
+		// layout) and dispatches this event after each of its own successful
+		// sends, so a submit made straight from the site sheet also refreshes
+		// the map/card counts immediately rather than waiting for the poll.
+		refreshStatus();
+		const statusInterval = setInterval(refreshStatus, 30000); // live-ish demo counts
+		document.addEventListener('dtbi:sent', refreshStatus);
+
 		return () => {
 			removeEventListener('online', onOnline);
 			clearInterval(interval);
+			clearInterval(statusInterval);
+			document.removeEventListener('dtbi:sent', refreshStatus);
 		};
 	});
 
