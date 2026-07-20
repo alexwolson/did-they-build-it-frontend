@@ -7,11 +7,28 @@
 	import Toast from '$lib/components/Toast.svelte';
 	import { appState } from '$lib/app-state.svelte';
 	import { createQueue, postSubmission } from '$lib/queue';
+	import type { SitesCollection } from '$lib/types';
 
-	let { data, children } = $props();
-	$effect.pre(() => {
-		appState.sites = data.sites.features;
-	});
+	let { children } = $props();
+
+	// Load the static site data CLIENT-SIDE only. It must NOT be fetched during
+	// SSR: on Cloudflare a Worker sub-requesting its own hostname for a static
+	// asset fails with error 1042 (this passes in local dev/Miniflare, which
+	// doesn't enforce that, and only surfaces on the real edge). A browser
+	// fetching /data/sites.json is a normal CDN request, so doing it here keeps
+	// the 118 KB payload off the JS bundle and the SSR HTML while avoiding 1042.
+	// The map is client-deferred and needs no sites during SSR.
+	async function loadSites() {
+		try {
+			const res = await fetch('/data/sites.json');
+			if (res.ok) {
+				const collection: SitesCollection = await res.json();
+				appState.sites = collection.features;
+			}
+		} catch {
+			// non-fatal: without sites the map simply shows no pins rather than crashing
+		}
+	}
 
 	// Live community status: fetch aggregate verdict counts and merge into
 	// appState so MapCanvas's $effect recolors pin rings and ConditionCard's
@@ -33,6 +50,8 @@
 	// a flaky venue network never loses a report (shared KEY with ConditionCard's
 	// own lazily-built queue, so both drain the same persisted localStorage list).
 	onMount(() => {
+		loadSites(); // client-side site data load (see loadSites for the SSR/1042 rationale)
+
 		const queue = createQueue({
 			storage: localStorage,
 			post: postSubmission(fetch),
