@@ -106,19 +106,15 @@
 	{/if}
 
 	<div class="verdicts" role="group" aria-label="Is it there?">
-		<button
-			class="v present"
-			class:active={myVerdict === 'present'}
-			onclick={(e) => tap('present', e)}>✓ It's there</button
-		>
-		<button class="v absent" class:active={myVerdict === 'absent'} onclick={(e) => tap('absent', e)}
-			>✗ Not there</button
-		>
-		<button
-			class="v unclear"
-			class:active={myVerdict === 'unclear'}
-			onclick={(e) => tap('unclear', e)}>🤷 Can't tell</button
-		>
+		<button class="v present" class:active={myVerdict === 'present'} onclick={(e) => tap('present', e)}>
+			<span class="v-icon">✓</span><span class="v-label">It's there</span>
+		</button>
+		<button class="v absent" class:active={myVerdict === 'absent'} onclick={(e) => tap('absent', e)}>
+			<span class="v-icon">✗</span><span class="v-label">Not there</span>
+		</button>
+		<button class="v unclear" class:active={myVerdict === 'unclear'} onclick={(e) => tap('unclear', e)}>
+			<span class="v-icon">🤷</span><span class="v-label">Not sure</span>
+		</button>
 	</div>
 
 	{#if myVerdict}
@@ -151,10 +147,19 @@
 	{/if}
 
 	{#if counts && counts.present + counts.absent + counts.unclear > 0}
-		<p class="community">
-			{counts.present} say it's there · {counts.absent} say missing
-			{#if counts.photos > 0} · 📷 {counts.photos}{/if}
-		</p>
+		<div class="community">
+			<div class="tally-bar" aria-hidden="true">
+				{#if counts.present}<span class="seg present" style="flex: {counts.present}"></span>{/if}
+				{#if counts.absent}<span class="seg absent" style="flex: {counts.absent}"></span>{/if}
+				{#if counts.unclear}<span class="seg unclear" style="flex: {counts.unclear}"></span>{/if}
+			</div>
+			<p class="tally-labels">
+				<span class="present" class:dim={counts.present === 0}>{counts.present} here</span>
+				<span class="absent" class:dim={counts.absent === 0}>{counts.absent} missing</span>
+				{#if counts.unclear}<span class="unclear">{counts.unclear} unsure</span>{/if}
+				{#if counts.photos > 0}<span class="photos">📷 {counts.photos}</span>{/if}
+			</p>
+		</div>
 	{/if}
 </article>
 
@@ -195,30 +200,61 @@
 		margin-top: 12px;
 	}
 	.v {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
 		border: 2px solid #e2e8f0;
 		background: var(--surface);
 		border-radius: var(--radius);
 		padding: 12px 4px;
-		font-weight: 700;
+		color: var(--ink);
 		cursor: pointer;
 		transition:
-			transform 100ms ease,
-			border-color 100ms ease;
+			transform 120ms ease,
+			border-color 120ms ease,
+			background 120ms ease,
+			box-shadow 120ms ease;
+	}
+	.v-icon {
+		font-size: 1.4rem;
+		line-height: 1;
+	}
+	.v-label {
+		font-size: 0.9rem;
+		font-weight: 700;
+		white-space: nowrap;
 	}
 	.v:active {
-		transform: scale(0.95);
+		transform: scale(0.94);
+	}
+	/* Selected verdict: filled, white text, and a subtle pop — the tap should
+	   feel decisive and rewarding, and the choice should be unmistakable. */
+	.v.active {
+		color: #fff;
+		transform: scale(1.03);
+		box-shadow: 0 5px 16px rgb(15 23 42 / 0.18);
 	}
 	.v.present.active {
 		border-color: var(--present);
-		background: #f0fdf4;
+		background: var(--present);
 	}
 	.v.absent.active {
 		border-color: var(--absent);
-		background: #fef2f2;
+		background: var(--absent);
 	}
 	.v.unclear.active {
 		border-color: var(--unclear);
-		background: #fffbeb;
+		background: var(--unclear);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.v {
+			transition: background 120ms ease, border-color 120ms ease;
+		}
+		.v.active,
+		.v:active {
+			transform: none;
+		}
 	}
 	.thanks {
 		color: var(--present);
@@ -231,10 +267,55 @@
 		font-size: 0.85rem;
 		margin-left: 6px;
 	}
+	/* Community consensus — the social payoff. A proportional bar of what the
+	   crowd has reported so far, so agreement is felt at a glance, not read. */
 	.community {
-		color: var(--ink-soft);
-		font-size: 0.85rem;
+		margin: 12px 0 0;
+	}
+	.tally-bar {
+		display: flex;
+		gap: 2px;
+		height: 8px;
+		border-radius: 999px;
+		overflow: hidden;
+		background: #e2e8f0;
+	}
+	.tally-bar .seg {
+		display: block;
+	}
+	.tally-bar .seg.present {
+		background: var(--present);
+	}
+	.tally-bar .seg.absent {
+		background: var(--absent);
+	}
+	.tally-bar .seg.unclear {
+		background: var(--unclear);
+	}
+	.tally-labels {
+		display: flex;
+		gap: 12px;
 		margin: 6px 0 0;
+		font-size: 0.82rem;
+		font-weight: 600;
+	}
+	.tally-labels .present {
+		color: var(--present);
+	}
+	.tally-labels .absent {
+		color: var(--absent);
+	}
+	.tally-labels .unclear {
+		color: var(--unclear);
+	}
+	.tally-labels .photos {
+		color: var(--ink-soft);
+		font-weight: 500;
+		margin-left: auto;
+	}
+	.tally-labels .dim {
+		color: #94a3b8; /* a zero count shouldn't read as an alarming red/green */
+		font-weight: 500;
 	}
 	.extras {
 		margin-top: 10px;

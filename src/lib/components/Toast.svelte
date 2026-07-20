@@ -15,7 +15,7 @@
 
 {#if visible}
 	<div class="toast" role="status">
-		{appState.tally} promise{appState.tally > 1 ? 's' : ''} checked tonight 🎉
+		{#if appState.tally === 1}Nice — your first promise checked tonight! 🎉{:else}That's {appState.tally} promises checked tonight 🎉{/if}
 	</div>
 {/if}
 

@@ -63,6 +63,12 @@
 		});
 		appState.pendingSync = queue.pending();
 		queue.flush();
+
+		// Show the tap hint once, only to first-time visitors, once sites exist.
+		if (!localStorage.getItem('dtbi:seen-hint')) {
+			showHint = true;
+			setTimeout(dismissHint, 9000); // auto-clear if they don't tap
+		}
 		const onOnline = () => queue.flush();
 		addEventListener('online', onOnline);
 		const interval = setInterval(() => queue.pending() > 0 && queue.flush(), 15000);
@@ -97,6 +103,20 @@
 		listOpen = true; // open regardless — falls back to distance-from-map-centre
 		if (!ok) console.warn('geolocate control not ready');
 	}
+
+	// First-run orientation: a cold volunteer opens to a field of pins with no
+	// cue to tap one. Show a one-time, dismissable hint (not a splash) that
+	// clears itself the moment they open any site, and never returns.
+	let showHint = $state(false);
+	function dismissHint() {
+		if (!showHint) return;
+		showHint = false;
+		localStorage.setItem('dtbi:seen-hint', '1');
+	}
+	function openSite(siteId: string) {
+		dismissHint();
+		goto(`/site/${siteId}`);
+	}
 </script>
 
 <svelte:head>
@@ -105,7 +125,7 @@
 </svelte:head>
 
 <MapCanvas
-	onSelect={(siteId) => goto(`/site/${siteId}`)}
+	onSelect={openSite}
 	registerMap={(m, g) => {
 		geolocate = g;
 		m.on('moveend', () => {
@@ -126,7 +146,13 @@
 <button class="fab" onclick={nearMe}>📍 Near me</button>
 <Toast />
 
-<NearbyList bind:open={listOpen} {origin} onSelect={(siteId) => goto(`/site/${siteId}`)} />
+{#if showHint}
+	<button class="hint" onclick={dismissHint}>
+		<span class="hint-emoji">👆</span> Tap a pin to see what was promised
+	</button>
+{/if}
+
+<NearbyList bind:open={listOpen} {origin} onSelect={openSite} />
 
 {@render children()}
 
@@ -149,4 +175,56 @@
 		transition: transform 120ms ease;
 	}
 	.fab:active { transform: scale(0.94); }
+
+	/* First-run tap hint — centred low over the map, above the FAB, tap to dismiss. */
+	.hint {
+		position: fixed;
+		left: 50%;
+		bottom: calc(96px + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		max-width: min(88vw, 340px);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: var(--ink);
+		color: #fff;
+		border: 0;
+		border-radius: 999px;
+		padding: 12px 18px;
+		font-size: 0.95rem;
+		font-weight: 600;
+		text-align: left;
+		line-height: 1.25;
+		box-shadow: var(--shadow);
+		cursor: pointer;
+		z-index: 40;
+		animation: hint-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1);
+	}
+	.hint-emoji {
+		font-size: 1.15rem;
+		animation: hint-bob 1.4s ease-in-out infinite;
+	}
+	@keyframes hint-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, 12px);
+		}
+	}
+	@keyframes hint-bob {
+		0%,
+		100% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-3px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hint {
+			animation: none;
+		}
+		.hint-emoji {
+			animation: none;
+		}
+	}
 </style>
