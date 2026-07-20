@@ -1,6 +1,11 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
-import { allStatusCounts, attachPhoto, submitVerdict } from '../../src/lib/server/submissions';
+import {
+	allStatusCounts,
+	attachPhoto,
+	submissionOwnedByDevice,
+	submitVerdict
+} from '../../src/lib/server/submissions';
 
 const base = {
 	siteId: '21-208078-ste-10-oz',
@@ -45,5 +50,22 @@ describe('submissions (real local D1)', () => {
 		expect(await attachPhoto(env.DB, id, 'device-1', 'photos/x.jpg')).toBe(true);
 		const counts = await allStatusCounts(env.DB);
 		expect(counts['abcd1234abcd1234'].photos).toBe(1);
+	});
+
+	it('submissionOwnedByDevice is a read-only ownership check that never sets photo_key', async () => {
+		// Uses its own conditionKey/device so it doesn't collide with photo_key
+		// state left behind by earlier tests sharing the `base` fixture.
+		const { id } = await submitVerdict(env.DB, {
+			...base,
+			conditionKey: 'ownercheck00000001',
+			deviceId: 'device-owner-check',
+			verdict: 'present'
+		});
+		expect(await submissionOwnedByDevice(env.DB, id, 'WRONG-device')).toBe(false);
+		expect(await submissionOwnedByDevice(env.DB, 'not-a-real-id', 'device-owner-check')).toBe(false);
+		expect(await submissionOwnedByDevice(env.DB, id, 'device-owner-check')).toBe(true);
+		// Confirms it's read-only: no photo recorded as a side effect of the checks above.
+		const counts = await allStatusCounts(env.DB);
+		expect(counts['ownercheck00000001'].photos).toBe(0);
 	});
 });
