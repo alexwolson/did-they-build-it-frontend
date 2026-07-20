@@ -24,9 +24,11 @@ conditions across ~90 addresses; it will grow, so data import is a re-runnable s
    Lighthouse mobile perf ≥ 90.
 2. **EASY** — the minimum meaningful ask is ONE TAP. Everything beyond a verdict
    (photo, note) is optional and clearly skippable.
-3. **FUN** — 60 fps vector map, optimistic UI, confetti micro-burst + haptic on
-   submission, session tally ("3 promises checked tonight"), pins that visibly
-   accumulate community status over the evening.
+3. **FUN** — vector map and UI motion at the display's **native refresh rate**
+   (120/144/240 Hz where the hardware offers it — never artificially capped at
+   60), optimistic UI, confetti micro-burst + haptic on submission, session
+   tally ("3 promises checked tonight"), pins that visibly accumulate community
+   status over the evening.
 
 ## Architecture
 
@@ -135,6 +137,33 @@ Session tally toast between sites.
 **Photos**: downscaled on-device (max ~1600 px JPEG) before upload. Demo shows
 photo *counts* on cards but does not display strangers' photos (moderation is
 out of scope today).
+
+## Motion & frame rate
+
+The app targets the display's native refresh rate, not a fixed 60 fps.
+`requestAnimationFrame` already fires at native Hz in modern browsers; our job
+is to never be the bottleneck or the cap:
+
+- **Frame budget is 8.3 ms** (120 Hz) for main-thread work during interaction —
+  pan, sheet drag, marker updates — not 16.7 ms. Treat 4.2 ms (240 Hz) as the
+  stretch target for our own UI code; the GPU-bound map may not sustain 240 Hz
+  on real hardware, but the cap must come from the hardware, never from us.
+- **All bespoke animations are delta-time-based** (scaled by elapsed ms, never
+  per-frame increments) so confetti and fly-to feel identical at 60, 120, or
+  240 Hz instead of running 2–4× fast. No fps-capped animation libraries.
+- **UI motion runs on the compositor**: bottom sheet, status-ring transitions,
+  and marker pop-ins animate `transform`/`opacity` only (CSS transitions or
+  Web Animations API), which the browser drives at native Hz off the main
+  thread. During sheet drags, pointer input writes transforms directly —
+  no layout reads in the hot path.
+- **Known ceiling we don't control**: iOS Safari only recently allows web
+  content above 60 Hz on ProMotion devices; older iOS versions pin rAF to 60
+  regardless of what we ship. Android Chrome has run rAF at native Hz for
+  years.
+- **Verification is manual on-device** (a high-refresh Android/iPhone with the
+  browser FPS HUD): CI's Lighthouse runs headless at 60 Hz and can't see this.
+  What CI does enforce — the total-blocking-time and script-size gates — is
+  what keeps the frame budget achievable.
 
 ## Resilience & error handling
 
