@@ -2,6 +2,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import ConditionCard from '$lib/components/ConditionCard.svelte';
+	import Directions from '$lib/components/Directions.svelte';
 	import type { SiteFeature } from '$lib/types';
 
 	let { site }: { site: SiteFeature | undefined } = $props();
@@ -80,6 +81,7 @@
 				· Ward {p.ward}
 			</p>
 		</header>
+		<Directions lng={site.geometry.coordinates[0]} lat={site.geometry.coordinates[1]} />
 		<p class="promise">The developer agreed to build:</p>
 		{#each p.conditions as condition (condition.key)}
 			<ConditionCard {condition} siteId={p.siteId} />
