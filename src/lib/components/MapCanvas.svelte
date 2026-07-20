@@ -1,16 +1,16 @@
 <script lang="ts">
-	// Type-only: keeps `maplibregl.Map` etc. usable as types without pulling the ~270KB-gzip
-	// maplibre-gl runtime into the initial route chunk. The real module (JS + CSS) is loaded
-	// with a dynamic import() inside the idle-deferred callback below, so parsing/compiling it
-	// happens off the critical path too — that parse/compile cost was itself a big chunk of the
-	// pre-optimization Total Blocking Time, on top of the map's own boot work.
+	// Type-only import keeps the ~270KB-gzip maplibre-gl runtime out of the initial
+	// route chunk; the real module (JS + CSS) is dynamically imported on idle below.
 	import type maplibregl from 'maplibre-gl';
-	import { onMount } from 'svelte';
 	import type { Point } from 'geojson';
-	import type { SiteFeature } from '$lib/types';
+	import { mount, unmount, onMount } from 'svelte';
+	import type { SiteFeature, ConditionType } from '$lib/types';
 	import { appState } from '$lib/app-state.svelte';
 	import { RING_COLORS, dominantType, siteRing } from '$lib/status';
 	import { CONDITION_META } from '$lib/condition-meta';
+	import { civicFreshMapStyle } from '$lib/map-style';
+	import TeardropMarker from './TeardropMarker.svelte';
+	import ClusterMarker from './ClusterMarker.svelte';
 
 	let {
 		onSelect,
@@ -24,46 +24,27 @@
 	let mapRef: maplibregl.Map | undefined;
 	let sourceReady = $state(false);
 
-	// Status or sites changed → refresh source data (368 features: trivially cheap).
-	// Top-level $effect — effects CANNOT be created inside onMount callbacks
-	// (effect_orphan). This one no-ops until the source exists.
+	// Sites/status changed → refresh the clustered source; the 'render' handler
+	// then re-syncs the DOM markers (top-level $effect; no-ops until source exists).
 	$effect(() => {
 		const data = buildMapData(appState.sites, appState.statusCounts);
 		if (sourceReady) (mapRef?.getSource('sites') as maplibregl.GeoJSONSource | undefined)?.setData(data);
 	});
 
-	export function buildMapData(sites: SiteFeature[], counts: typeof appState.statusCounts) {
+	function buildMapData(sites: SiteFeature[], counts: typeof appState.statusCounts) {
 		return {
 			type: 'FeatureCollection' as const,
 			features: sites.map((f) => ({
 				...f,
 				properties: {
 					siteId: f.properties.siteId,
-					icon: `icon-${dominantType(f.properties)}`,
-					ringColor: RING_COLORS[siteRing(f.properties, counts)],
-					nConditions: f.properties.conditions.length
+					type: dominantType(f.properties),
+					ringColor: RING_COLORS[siteRing(f.properties, counts)]
 				}
 			}))
 		};
 	}
 
-	function emojiIcon(emoji: string, size = 64): ImageData {
-		const c = document.createElement('canvas');
-		c.width = c.height = size;
-		const ctx = c.getContext('2d')!;
-		ctx.font = `${Math.round(size * 0.72)}px sans-serif`;
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'middle';
-		ctx.fillText(emoji, size / 2, size / 2 + size * 0.05);
-		return ctx.getImageData(0, 0, size, size);
-	}
-
-	// MapLibre's boot (style parse, WebGL context, tile decode) is the dominant chunk of the
-	// page's main-thread cost (Total Blocking Time). The container paints instantly via CSS
-	// (see .map background below) so there's no white flash and FCP/LCP land on the shell —
-	// then we push the actual `new maplibregl.Map(...)` past first paint using idle time.
-	// requestIdleCallback isn't in Safari, so it falls back to a short setTimeout there; either
-	// way the map still appears on its own within a moment of load — no interaction required.
 	function onIdle(cb: () => void): () => void {
 		const w = window as typeof window & {
 			requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
@@ -80,6 +61,19 @@
 	onMount(() => {
 		let mapForCleanup: maplibregl.Map | undefined;
 
+		// DOM markers synced to the clustered source (so we can use our own flat
+		// teardrop shapes + duotone icons + Fraunces cluster counts, none of which a
+		// WebGL symbol/circle layer can render). Keyed by cluster id / site id so we
+		// create, reuse, restatus, and destroy as the viewport and clustering change.
+		type Rec = {
+			marker: maplibregl.Marker;
+			instance: Record<string, unknown>;
+			el: HTMLDivElement;
+			status?: string;
+		};
+		const markers: Record<string, Rec> = {};
+		let onScreen: Record<string, Rec> = {};
+
 		const cancelIdle = onIdle(async () => {
 			const [{ default: maplibregl }] = await Promise.all([
 				import('maplibre-gl'),
@@ -88,10 +82,10 @@
 
 			const map = new maplibregl.Map({
 				container,
-				style: 'https://tiles.openfreemap.org/styles/bright',
+				style: await civicFreshMapStyle(),
 				center: [-79.39, 43.645],
-				zoom: 14, // start close enough that the colourful per-type emoji pins show, not only clusters
-				attributionControl: { compact: true } // OpenFreeMap/OSM attribution comes from the style — required, do not remove
+				zoom: 14,
+				attributionControl: { compact: true }
 			});
 
 			const geolocate = new maplibregl.GeolocateControl({
@@ -113,11 +107,75 @@
 			mapRef = map;
 			mapForCleanup = map;
 
-			map.on('load', () => {
-				for (const [type, meta] of Object.entries(CONDITION_META)) {
-					map.addImage(`icon-${type}`, emojiIcon(meta.emoji), { pixelRatio: 2 });
-				}
+			function makeTeardrop(type: ConditionType, status: string, siteId: string, coords: [number, number]): Rec {
+				const el = document.createElement('div');
+				const instance = mount(TeardropMarker, {
+					target: el,
+					props: { icon: CONDITION_META[type].icon, status }
+				});
+				el.addEventListener('click', (e) => {
+					e.stopPropagation();
+					onSelect(siteId);
+				});
+				const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(coords);
+				return { marker, instance, el, status };
+			}
 
+			function makeCluster(count: number, clusterId: number, coords: [number, number]): Rec {
+				const el = document.createElement('div');
+				const instance = mount(ClusterMarker, { target: el, props: { count } });
+				el.addEventListener('click', async (e) => {
+					e.stopPropagation();
+					const src = map.getSource('sites') as maplibregl.GeoJSONSource;
+					const zoom = await src.getClusterExpansionZoom(clusterId);
+					map.easeTo({ center: coords, zoom });
+				});
+				const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coords);
+				return { marker, instance, el };
+			}
+
+			function updateMarkers() {
+				if (!map.isSourceLoaded('sites')) return;
+				const next: Record<string, Rec> = {};
+				for (const f of map.querySourceFeatures('sites')) {
+					const coords = (f.geometry as Point).coordinates as [number, number];
+					const p = f.properties as {
+						cluster?: boolean;
+						cluster_id?: number;
+						point_count?: number;
+						siteId?: string;
+						type?: ConditionType;
+						ringColor?: string;
+					};
+					let id: string;
+					let rec: Rec;
+					if (p.cluster) {
+						id = 'c' + p.cluster_id;
+						rec = markers[id] ?? makeCluster(p.point_count ?? 0, p.cluster_id ?? 0, coords);
+					} else {
+						id = 's' + p.siteId;
+						rec = markers[id] ?? makeTeardrop(p.type ?? 'landscaping', p.ringColor ?? '#9aa8a2', p.siteId ?? '', coords);
+						if (rec.status !== p.ringColor) {
+							const drop = rec.el.querySelector('.drop') as HTMLElement | null;
+							if (drop && p.ringColor) drop.style.borderColor = p.ringColor;
+							rec.status = p.ringColor;
+						}
+					}
+					markers[id] = rec;
+					next[id] = rec;
+					if (!onScreen[id]) rec.marker.addTo(map);
+				}
+				for (const id in onScreen) {
+					if (!next[id]) {
+						onScreen[id].marker.remove();
+						unmount(onScreen[id].instance);
+						delete markers[id];
+					}
+				}
+				onScreen = next;
+			}
+
+			map.on('load', () => {
 				map.addSource('sites', {
 					type: 'geojson',
 					data: buildMapData(appState.sites, appState.statusCounts),
@@ -126,82 +184,17 @@
 					clusterRadius: 55,
 					promoteId: 'siteId'
 				});
-
+				// Invisible circle layer anchors the source so querySourceFeatures returns
+				// its clustered + unclustered features; the visible markers are DOM (above).
 				map.addLayer({
-					id: 'clusters',
+					id: 'sites-src',
 					type: 'circle',
 					source: 'sites',
-					filter: ['has', 'point_count'],
-					paint: {
-						'circle-color': '#0d9488',
-						'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24],
-						'circle-stroke-width': 3,
-						'circle-stroke-color': '#ffffff'
-					}
-				});
-				map.addLayer({
-					id: 'cluster-count',
-					type: 'symbol',
-					source: 'sites',
-					filter: ['has', 'point_count'],
-					layout: {
-						'text-field': ['get', 'point_count_abbreviated'],
-						'text-font': ['Noto Sans Regular'],
-						'text-size': 13
-					},
-					paint: { 'text-color': '#ffffff' }
-				});
-				// Status ring under the icon — the map accumulates the evening's story.
-				map.addLayer({
-					id: 'site-rings',
-					type: 'circle',
-					source: 'sites',
-					filter: ['!', ['has', 'point_count']],
-					paint: {
-						'circle-color': ['get', 'ringColor'],
-						'circle-radius': 15,
-						'circle-opacity': 0.95,
-						'circle-stroke-width': 2.5,
-						'circle-stroke-color': '#ffffff'
-					}
-				});
-				map.addLayer({
-					id: 'site-icons',
-					type: 'symbol',
-					source: 'sites',
-					filter: ['!', ['has', 'point_count']],
-					layout: { 'icon-image': ['get', 'icon'], 'icon-size': 0.42, 'icon-allow-overlap': true }
-				});
-				// Spec: multi-condition sites get a count badge.
-				map.addLayer({
-					id: 'site-count',
-					type: 'symbol',
-					source: 'sites',
-					filter: ['all', ['!', ['has', 'point_count']], ['>', ['get', 'nConditions'], 1]],
-					layout: {
-						'text-field': ['to-string', ['get', 'nConditions']],
-						'text-font': ['Noto Sans Bold'],
-						'text-size': 11,
-						'text-offset': [1.1, -1.1],
-						'text-allow-overlap': true
-					},
-					paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }
+					paint: { 'circle-radius': 1, 'circle-opacity': 0 }
 				});
 
-				map.on('click', 'clusters', async (e) => {
-					const feature = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })[0];
-					const source = map.getSource('sites') as maplibregl.GeoJSONSource;
-					const zoom = await source.getClusterExpansionZoom(feature.properties.cluster_id);
-					map.easeTo({ center: (feature.geometry as Point).coordinates as [number, number], zoom });
-				});
-				map.on('click', ['site-rings', 'site-icons'], (e) => {
-					const f = e.features?.[0];
-					if (f) onSelect(String(f.properties.siteId));
-				});
-				for (const layer of ['clusters', 'site-rings', 'site-icons']) {
-					map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
-					map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
-				}
+				map.on('render', updateMarkers);
+				map.on('moveend', updateMarkers);
 
 				sourceReady = true;
 				registerMap?.(map, geolocate);
@@ -210,6 +203,10 @@
 
 		return () => {
 			cancelIdle();
+			for (const id in markers) {
+				markers[id].marker.remove();
+				unmount(markers[id].instance);
+			}
 			mapForCleanup?.remove();
 		};
 	});
@@ -221,16 +218,11 @@
 	.map {
 		position: fixed;
 		inset: 0;
-		/* Matches the positron style's `background` layer (land fill) so the shell reads as
-		   "map" from first paint instead of flashing white while MapLibre boots on idle.
-		   Note: this is deliberately background-color, not background-image — Chrome's LCP
-		   algorithm doesn't treat a solid background-color as a paintable candidate, so this
-		   doesn't move the LCP metric itself (that stays pinned to whatever the map ultimately
-		   paints, e.g. the required attribution text once the style loads). It's here purely
-		   for perceived quality: no white flash while MapLibre boots on idle time. */
-		background-color: rgb(242, 243, 240);
+		/* Civic Fresh land colour so the shell reads as "map" from first paint,
+		   no white flash while MapLibre boots on idle. */
+		background-color: #e7eee9;
 	}
-	/* We trigger geolocation from our own FAB */
+	/* We trigger geolocation from our own FAB. */
 	:global(.maplibregl-ctrl-geolocate) {
 		display: none;
 	}

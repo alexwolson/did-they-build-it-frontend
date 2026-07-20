@@ -8,6 +8,10 @@
 	import { CONDITION_META } from '$lib/condition-meta';
 	import { downscale } from '$lib/photo';
 	import type { SiteCondition, Verdict } from '$lib/types';
+	import Check from 'phosphor-svelte/lib/Check';
+	import X from 'phosphor-svelte/lib/X';
+	import Question from 'phosphor-svelte/lib/Question';
+	import Camera from 'phosphor-svelte/lib/Camera';
 
 	let { condition, siteId }: { condition: SiteCondition; siteId: string } = $props();
 
@@ -37,6 +41,7 @@
 	let noteState = $state<'idle' | 'saved'>('idle');
 
 	let counts = $derived(appState.statusCounts[condition.key]);
+	let TypeIcon = $derived(CONDITION_META[condition.type].icon);
 
 	async function tap(verdict: Verdict, e: MouseEvent) {
 		const isUpdate = myVerdict !== null;
@@ -94,7 +99,10 @@
 </script>
 
 <article class="card">
-	<p class="type">{CONDITION_META[condition.type].emoji} {CONDITION_META[condition.type].label}</p>
+	<p class="type">
+		<TypeIcon size={24} weight="duotone" color="var(--brand)" />
+		<span class="type-label">{CONDITION_META[condition.type].label}</span>
+	</p>
 	<p class="desc">{condition.description}</p>
 	<button class="raw-toggle" onclick={() => (showRaw = !showRaw)}>
 		{showRaw ? 'Hide' : 'Show'} exact wording
@@ -107,19 +115,22 @@
 
 	<div class="verdicts" role="group" aria-label="Is it there?">
 		<button class="v present" class:active={myVerdict === 'present'} onclick={(e) => tap('present', e)}>
-			<span class="v-icon">✓</span><span class="v-label">It's there</span>
+			<Check size={22} weight="duotone" />
+			<span class="v-label">It's there</span>
 		</button>
 		<button class="v absent" class:active={myVerdict === 'absent'} onclick={(e) => tap('absent', e)}>
-			<span class="v-icon">✗</span><span class="v-label">Not there</span>
+			<X size={22} weight="duotone" />
+			<span class="v-label">Not there</span>
 		</button>
 		<button class="v unclear" class:active={myVerdict === 'unclear'} onclick={(e) => tap('unclear', e)}>
-			<span class="v-icon">🤷</span><span class="v-label">Not sure</span>
+			<Question size={22} weight="duotone" />
+			<span class="v-label">Not sure</span>
 		</button>
 	</div>
 
 	{#if myVerdict}
 		<p class="thanks">
-			Recorded — thank you!
+			Logged — you're in tonight's count.
 			{#if appState.pendingSync > 0}<span class="sync"
 					>{appState.pendingSync} report{appState.pendingSync > 1 ? 's' : ''} syncing…</span
 				>{/if}
@@ -129,7 +140,8 @@
 			<div class="extras-row">
 				{#if sentId}
 					<label class="photo-btn" class:done={photoState === 'done'}>
-						{#if photoState === 'idle'}📷 Photo{:else if photoState === 'uploading'}Uploading…{:else if photoState === 'done'}📷 Added ✓{:else}Retry 📷{/if}
+						<Camera size={18} weight="duotone" />
+						{#if photoState === 'idle'}Photo{:else if photoState === 'uploading'}Uploading…{:else if photoState === 'done'}Added{:else}Retry{/if}
 						<input type="file" accept="image/*" capture="environment" onchange={addPhoto} hidden />
 					</label>
 				{/if}
@@ -141,7 +153,7 @@
 					bind:value={note}
 					onblur={saveNote}
 				/>
-				{#if noteState === 'saved'}<span class="note-ok">✓</span>{/if}
+				{#if noteState === 'saved'}<span class="note-ok"><Check size={16} weight="bold" /></span>{/if}
 			</div>
 		</div>
 	{/if}
@@ -154,10 +166,12 @@
 				{#if counts.unclear}<span class="seg unclear" style="flex: {counts.unclear}"></span>{/if}
 			</div>
 			<p class="tally-labels">
-				<span class="present" class:dim={counts.present === 0}>{counts.present} here</span>
-				<span class="absent" class:dim={counts.absent === 0}>{counts.absent} missing</span>
+				<span class="present" class:dim={counts.present === 0}>{counts.present} say it's there</span>
+				<span class="absent" class:dim={counts.absent === 0}
+					>{counts.absent} say{counts.absent === 1 ? 's' : ''} missing</span
+				>
 				{#if counts.unclear}<span class="unclear">{counts.unclear} unsure</span>{/if}
-				{#if counts.photos > 0}<span class="photos">📷 {counts.photos}</span>{/if}
+				{#if counts.photos > 0}<span class="photos"><Camera size={14} weight="duotone" /> {counts.photos}</span>{/if}
 			</p>
 		</div>
 	{/if}
@@ -166,30 +180,43 @@
 <style>
 	.card {
 		background: var(--surface);
+		border: 1px solid var(--line);
 		border-radius: var(--radius);
-		box-shadow: 0 2px 10px rgb(15 23 42 / 0.07);
 		padding: 14px;
 		margin-bottom: 12px;
 	}
 	.type {
-		font-weight: 700;
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		margin: 0 0 6px;
+	}
+	.type-label {
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 36, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
+		font-size: 1.05rem;
+		color: var(--ink);
 	}
 	.desc {
 		margin: 0 0 8px;
+		color: var(--ink-soft);
 	}
 	.raw-toggle {
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 20, 'SOFT' 50, 'WONK' 1;
 		background: none;
 		border: 0;
 		color: var(--brand);
 		padding: 0;
 		font-size: 0.85rem;
+		font-weight: 700;
 		cursor: pointer;
 	}
 	blockquote {
 		font-size: 0.85rem;
 		color: var(--ink-soft);
-		border-left: 3px solid #e2e8f0;
+		border-left: 3px solid var(--line);
 		margin: 8px 0;
 		padding-left: 10px;
 	}
@@ -204,7 +231,7 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 4px;
-		border: 2px solid #e2e8f0;
+		border: 2px solid var(--line);
 		background: var(--surface);
 		border-radius: var(--radius);
 		padding: 12px 4px;
@@ -214,26 +241,22 @@
 			transform 120ms ease,
 			border-color 120ms ease,
 			background 120ms ease,
-			box-shadow 120ms ease;
-	}
-	.v-icon {
-		font-size: 1.4rem;
-		line-height: 1;
+			color 120ms ease;
 	}
 	.v-label {
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 24, 'SOFT' 50, 'WONK' 1;
+		font-weight: 600;
 		font-size: 0.9rem;
-		font-weight: 700;
 		white-space: nowrap;
 	}
 	.v:active {
-		transform: scale(0.94);
+		transform: scale(0.96);
 	}
-	/* Selected verdict: filled, white text, and a subtle pop — the tap should
-	   feel decisive and rewarding, and the choice should be unmistakable. */
+	/* Selected verdict: neutral-then-fill — the tap should feel decisive and
+	   unmistakable, communicated purely through flat colour fill, no shadow. */
 	.v.active {
 		color: #fff;
-		transform: scale(1.03);
-		box-shadow: 0 5px 16px rgb(15 23 42 / 0.18);
 	}
 	.v.present.active {
 		border-color: var(--present);
@@ -257,11 +280,14 @@
 		}
 	}
 	.thanks {
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 28, 'SOFT' 50, 'WONK' 1;
 		color: var(--present);
 		font-weight: 600;
 		margin: 10px 0 0;
 	}
 	.sync {
+		font-family: var(--font-body);
 		color: var(--unclear);
 		font-weight: 400;
 		font-size: 0.85rem;
@@ -278,7 +304,7 @@
 		height: 8px;
 		border-radius: 999px;
 		overflow: hidden;
-		background: #e2e8f0;
+		background: var(--line);
 	}
 	.tally-bar .seg {
 		display: block;
@@ -294,6 +320,7 @@
 	}
 	.tally-labels {
 		display: flex;
+		align-items: center;
 		gap: 12px;
 		margin: 6px 0 0;
 		font-size: 0.82rem;
@@ -309,17 +336,20 @@
 		color: var(--unclear);
 	}
 	.tally-labels .photos {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
 		color: var(--ink-soft);
 		font-weight: 500;
 		margin-left: auto;
 	}
 	.tally-labels .dim {
-		color: #94a3b8; /* a zero count shouldn't read as an alarming red/green */
+		color: var(--none); /* a zero count shouldn't read as an alarming red/green */
 		font-weight: 500;
 	}
 	.extras {
 		margin-top: 10px;
-		border-top: 1px dashed #e2e8f0;
+		border-top: 1px solid var(--line);
 		padding-top: 10px;
 	}
 	.extras-label {
@@ -333,8 +363,11 @@
 		margin-top: 6px;
 	}
 	.photo-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 		background: var(--surface);
-		border: 2px solid #e2e8f0;
+		border: 2px solid var(--line);
 		border-radius: var(--radius);
 		padding: 10px 12px;
 		font-weight: 600;
@@ -343,13 +376,16 @@
 	}
 	.photo-btn.done {
 		border-color: var(--present);
+		color: var(--present);
 	}
 	.note {
 		flex: 1;
-		border: 2px solid #e2e8f0;
+		border: 2px solid var(--line);
 		border-radius: var(--radius);
 		padding: 10px 12px;
 		min-width: 0;
+		background: var(--surface);
+		color: var(--ink);
 	}
 	.note-ok {
 		color: var(--present);
