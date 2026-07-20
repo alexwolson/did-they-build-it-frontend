@@ -62,4 +62,71 @@ describe('createQueue', () => {
 		await revived.flush();
 		expect(revived.pending()).toBe(0);
 	});
+
+	it('does not clobber a report queued by a concurrent submit() while flush() is in flight', async () => {
+		// Regression test for finding 1: flush() used to snapshot the queue with a
+		// single read(), await each POST, then unconditionally write() the stale
+		// snapshot back — silently discarding anything appended to storage while
+		// those awaits were in flight (e.g. another ConditionCard's instance, or
+		// the layout's interval flush, submitting a new report mid-flush).
+		const storage = memStorage();
+		const old: SubmissionPayload = { ...payload, conditionKey: 'old' };
+		const fresh: SubmissionPayload = { ...payload, conditionKey: 'fresh' };
+
+		// Seed the queue with the OLD item directly (simulating a prior offline submit).
+		const seeder = createQueue({ storage, post: vi.fn().mockRejectedValue(new Error('offline')) });
+		await seeder.submit(old);
+		expect(seeder.pending()).toBe(1);
+
+		// Start a flush whose POST for the old item hangs until we release it.
+		let releaseFlushPost: (() => void) | undefined;
+		const flushPost = vi.fn().mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					releaseFlushPost = () => resolve({ ok: true, id: 'sent-old' });
+				})
+		);
+		const flushingQueue = createQueue({ storage, post: flushPost });
+		const flushPromise = flushingQueue.flush();
+
+		// While the flush's POST is still pending, a second (independent) queue
+		// instance — same shared storage key — queues a NEW report that fails to send.
+		const submitter = createQueue({ storage, post: vi.fn().mockRejectedValue(new Error('offline')) });
+		await submitter.submit(fresh);
+		expect(JSON.parse(storage.getItem('dtbi:queue')!)).toHaveLength(2);
+
+		// Now let the in-flight flush POST resolve and let flush() finish writing.
+		releaseFlushPost?.();
+		await flushPromise;
+
+		// The old item was sent, so it should be gone. The freshly-queued item was
+		// NOT part of the flush's snapshot and must survive — not be clobbered by
+		// flush()'s final write().
+		const remaining = JSON.parse(storage.getItem('dtbi:queue')!) as SubmissionPayload[];
+		expect(remaining).toHaveLength(1);
+		expect(remaining[0].conditionKey).toBe('fresh');
+		expect(flushingQueue.pending()).toBe(1);
+	});
+
+	it('retains a report in the queue when flush() gets a transient 5xx', async () => {
+		const storage = memStorage();
+		const seeder = createQueue({ storage, post: vi.fn().mockRejectedValue(new Error('offline')) });
+		await seeder.submit(payload);
+		expect(seeder.pending()).toBe(1);
+
+		const q = createQueue({ storage, post: vi.fn().mockResolvedValue({ ok: false, status: 500 }) });
+		await q.flush();
+		expect(q.pending()).toBe(1);
+	});
+
+	it('drops a report from the queue when flush() gets a permanent 4xx', async () => {
+		const storage = memStorage();
+		const seeder = createQueue({ storage, post: vi.fn().mockRejectedValue(new Error('offline')) });
+		await seeder.submit(payload);
+		expect(seeder.pending()).toBe(1);
+
+		const q = createQueue({ storage, post: vi.fn().mockResolvedValue({ ok: false, status: 400 }) });
+		await q.flush();
+		expect(q.pending()).toBe(0);
+	});
 });
