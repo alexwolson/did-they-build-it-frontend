@@ -48,6 +48,21 @@ describe('formatAddress', () => {
 			formatAddress({ STREET_NUM: '580', STREET_NAME: 'FRONT', STREET_TYPE: 'ST', STREET_DIRECTION: 'W' })
 		).toBe('580 Front St W');
 	});
+	it('title-cases the letter after an apostrophe', () => {
+		expect(
+			formatAddress({ STREET_NUM: '10', STREET_NAME: "O'CONNOR", STREET_TYPE: 'DR', STREET_DIRECTION: ' ' })
+		).toBe("10 O'Connor Dr");
+	});
+	it('title-cases the letter after a hyphen', () => {
+		expect(
+			formatAddress({ STREET_NUM: '5', STREET_NAME: 'MARY-ANN', STREET_TYPE: 'ST', STREET_DIRECTION: ' ' })
+		).toBe('5 Mary-Ann St');
+	});
+	it('capitalizes the Mc prefix (real downtown Toronto street)', () => {
+		expect(
+			formatAddress({ STREET_NUM: '2', STREET_NAME: 'MCCAUL', STREET_TYPE: 'ST', STREET_DIRECTION: ' ' })
+		).toBe('2 McCaul St');
+	});
 });
 
 describe('siteFromApplication', () => {
@@ -85,5 +100,12 @@ describe('siteFromApplication', () => {
 		const out = siteFromApplication(APP, [{ ...COND, description: null }], {});
 		if (!('feature' in out)) throw new Error('expected a feature');
 		expect(out.feature.properties.conditions[0].description).toBe(COND.raw_text);
+	});
+	it('DOCUMENTED FALLBACK (not desirable): an unrecognized condition_type silently coerces to landscaping', () => {
+		// Locks in current behavior so any future change is deliberate. A later task
+		// is expected to surface a warning at the CLI layer when this fallback fires.
+		const out = siteFromApplication(APP, [{ ...COND, condition_type: 'cash_contribution' }], {});
+		if (!('feature' in out)) throw new Error('expected a feature');
+		expect(out.feature.properties.conditions[0].type).toBe('landscaping');
 	});
 });

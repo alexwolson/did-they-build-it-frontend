@@ -33,7 +33,16 @@ export function formatAddress(md: Record<string, unknown>): string {
 			.split(/\s+/)
 			.filter(Boolean)
 			.map((w) => (w.length === 1 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
-			.join(' ');
+			.join(' ')
+			// Capitalize the letter after an internal apostrophe or hyphen too
+			// (e.g. "O'connor" -> "O'Connor", "Mary-ann" -> "Mary-Ann").
+			.replace(/['-][a-z]/g, (m) => m[0] + m[1].toUpperCase())
+			// "Mc"/"Mac" surname prefix: the general apostrophe/hyphen/space rule
+			// above can't know "McCaul" needs a second internal capital, since
+			// there's no delimiter between "Mc" and "Caul". This is a naming
+			// convention, not a lookup of specific street names, but it can
+			// false-positive on words that merely start with "Mac" (e.g. "Mack").
+			.replace(/\b(Mc|Mac)([a-z])/g, (_m, p: string, c: string) => p + c.toUpperCase());
 	const parts = [
 		String(md.STREET_NUM ?? '').trim(),
 		title(String(md.STREET_NAME ?? '').trim()),
