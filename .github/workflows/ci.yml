@@ -23,6 +23,8 @@ jobs:
       - run: npm ci
       - name: Unit tests (node)
         run: npm test
+      - name: Workers-pool tests (real local D1)
+        run: npm run test:workers
 
   bundle-size:
     name: bundle-size
