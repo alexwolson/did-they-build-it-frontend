@@ -5,7 +5,7 @@
 	import { deviceId } from '$lib/device';
 	import { createQueue, postSubmission } from '$lib/queue';
 	import { appState } from '$lib/app-state.svelte';
-	import { CONDITION_META } from '$lib/condition-meta';
+	import { CONDITION_META, SOURCE_LABEL } from '$lib/condition-meta';
 	import { downscale } from '$lib/photo';
 	import type { SiteCondition, Verdict } from '$lib/types';
 	import Check from 'phosphor-svelte/lib/Check';
@@ -99,13 +99,20 @@
 </script>
 
 <article class="card">
-	<p class="type">
+	<div class="chead">
 		<TypeIcon size={24} weight="duotone" color="var(--brand)" />
-		<span class="type-label">{CONDITION_META[condition.type].label}</span>
-	</p>
-	<p class="desc">{condition.description}</p>
+		<div class="ctitle">
+			<span class="feature">{condition.feature ?? CONDITION_META[condition.type].label}</span>
+			{#if condition.source}<span class="src-badge">{SOURCE_LABEL[condition.source]}</span>{/if}
+		</div>
+	</div>
+	{#if condition.prompt}
+		<p class="prompt">{condition.prompt}</p>
+	{:else}
+		<p class="desc">{condition.description}</p>
+	{/if}
 	<button class="raw-toggle" onclick={() => (showRaw = !showRaw)}>
-		{showRaw ? 'Hide' : 'Show'} exact wording
+		{showRaw ? 'Hide' : 'Show'} the exact wording
 	</button>
 	{#if showRaw}
 		<blockquote>
@@ -185,18 +192,46 @@
 		padding: 14px;
 		margin-bottom: 12px;
 	}
-	.type {
+	.chead {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 8px;
-		margin: 0 0 6px;
+		margin: 0 0 8px;
 	}
-	.type-label {
+	.chead :global(svg) {
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+	.ctitle {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 6px 8px;
+	}
+	.feature {
 		font-family: var(--font-disp);
 		font-variation-settings: 'opsz' 36, 'SOFT' 50, 'WONK' 1;
 		font-weight: 600;
 		font-size: 1.05rem;
 		color: var(--ink);
+	}
+	/* Commitment-strength badge — flat, quiet; the strength lives here, separate
+	   from the condition type. */
+	.src-badge {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		color: var(--ink-soft);
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		padding: 2px 8px;
+	}
+	/* The volunteer-facing question — the thing they actually answer. */
+	.prompt {
+		margin: 0 0 8px;
+		color: var(--ink);
+		font-weight: 600;
 	}
 	.desc {
 		margin: 0 0 8px;

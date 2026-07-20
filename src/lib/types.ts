@@ -3,16 +3,26 @@ export const CONDITION_TYPES = [
 	'bike_parking',
 	'public_art',
 	'street_furniture',
-	'pavers'
+	'pavers',
+	'open_space',
+	'other'
 ] as const;
 export type ConditionType = (typeof CONDITION_TYPES)[number];
+
+// Commitment strength — separate from the condition type. Where the obligation
+// came from: a binding condition of approval, a secured Section 37 community
+// benefit, or an approved proposal.
+export type ConditionSource = 'staff_report_condition' | 'section_37' | 'proposed_and_approved';
 
 export interface SiteCondition {
 	key: string; // stable 16-hex condition_key
 	type: ConditionType;
+	feature: string | null; // short specific label, e.g. "Public plaza"
+	prompt: string | null; // volunteer-facing question, e.g. "Is there a new public plaza?"
 	description: string;
 	rawText: string;
 	sourceUrl: string; // toronto.ca legdocs PDF
+	source: ConditionSource | null;
 }
 
 export interface SiteProperties {

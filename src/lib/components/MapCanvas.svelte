@@ -83,8 +83,8 @@
 			const map = new maplibregl.Map({
 				container,
 				style: await civicFreshMapStyle(),
-				center: [-79.39, 43.645],
-				zoom: 14,
+				center: [-79.3957, 43.6605], // UofT St. George campus (where the demo sites are)
+				zoom: 14.3,
 				attributionControl: { compact: true }
 			});
 

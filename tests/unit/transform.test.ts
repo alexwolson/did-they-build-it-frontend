@@ -8,6 +8,10 @@ const APP: AppRow = {
 	aic_ref: '21 208078 STE 10 OZ',
 	ward: '10',
 	status: 'OMB Appeal',
+	lat: null,
+	lng: null,
+	address: null,
+	source_url: null,
 	raw_metadata_json: JSON.stringify({
 		STREET_NUM: '147',
 		STREET_NAME: 'SPADINA',
@@ -23,7 +27,10 @@ const COND: ConditionRow = {
 	condition_type: 'landscaping',
 	raw_text: 'the owner has worked with City Planning… to conserve City trees;',
 	description: 'Conserve existing trees and submit a replacement plan if removal is needed.',
-	url: 'https://www.toronto.ca/legdocs/mmis/2023/te/bgrd/backgroundfile-239581.pdf'
+	url: 'https://www.toronto.ca/legdocs/mmis/2023/te/bgrd/backgroundfile-239581.pdf',
+	instruction: null,
+	feature: null,
+	source: null
 };
 
 describe('conditionKey', () => {
@@ -91,21 +98,54 @@ describe('siteFromApplication', () => {
 		if (!('feature' in out)) throw new Error('expected a feature');
 		expect(out.feature.geometry.coordinates).toEqual([-79.1, 43.9]);
 	});
-	it('reports a miss when X/Y are absent and no override exists', () => {
-		const noXY: AppRow = { ...APP, raw_metadata_json: JSON.stringify({ STREET_NUM: '1', STREET_NAME: 'X' }) };
-		const out = siteFromApplication(noXY, [COND], {});
+	it('reports a miss when coordinates are absent and no override exists', () => {
+		const noCoords: AppRow = { ...APP, raw_metadata_json: JSON.stringify({ STREET_NUM: '1', STREET_NAME: 'X' }) };
+		const out = siteFromApplication(noCoords, [COND], {});
 		expect('miss' in out && out.miss).toContain('21 208078 STE 10 OZ');
+	});
+	it('uses the application lat/lng directly when present (no MTM conversion)', () => {
+		const withLatLng: AppRow = { ...APP, lat: 43.6605, lng: -79.3957, raw_metadata_json: '{}' };
+		const out = siteFromApplication(withLatLng, [COND], {});
+		if (!('feature' in out)) throw new Error('expected a feature');
+		expect(out.feature.geometry.coordinates).toEqual([-79.3957, 43.6605]);
+	});
+	it('falls back to the addresses-table address and derives year from the AIC ref', () => {
+		const uoft: AppRow = {
+			...APP,
+			aic_ref: '19 129065 STE 11 SA',
+			lat: 43.6612,
+			lng: -79.3958,
+			address: "24 KING'S COLLEGE CIRCLE",
+			raw_metadata_json: '{}'
+		};
+		const out = siteFromApplication(uoft, [COND], {});
+		if (!('feature' in out)) throw new Error('expected a feature');
+		expect(out.feature.properties.address).toBe("24 King's College Circle");
+		expect(out.feature.properties.appliedYear).toBe(2019); // "19 ..." -> 2019
 	});
 	it('falls back to raw_text when description is null', () => {
 		const out = siteFromApplication(APP, [{ ...COND, description: null }], {});
 		if (!('feature' in out)) throw new Error('expected a feature');
 		expect(out.feature.properties.conditions[0].description).toBe(COND.raw_text);
 	});
-	it('DOCUMENTED FALLBACK (not desirable): an unrecognized condition_type silently coerces to landscaping', () => {
-		// Locks in current behavior so any future change is deliberate. A later task
-		// is expected to surface a warning at the CLI layer when this fallback fires.
+	it('cleans the instruction into a volunteer prompt and carries feature + source', () => {
+		const out = siteFromApplication(APP, [
+			{
+				...COND,
+				feature: 'Public plaza',
+				source: 'proposed_and_approved',
+				instruction: 'Go to 130 St George St. Is there a new public plaza? Yes / No / Can’t tell.'
+			}
+		], {});
+		if (!('feature' in out)) throw new Error('expected a feature');
+		const c = out.feature.properties.conditions[0];
+		expect(c.feature).toBe('Public plaza');
+		expect(c.prompt).toBe('Is there a new public plaza?');
+		expect(c.source).toBe('proposed_and_approved');
+	});
+	it('DOCUMENTED FALLBACK: an unrecognized condition_type coerces to "other"', () => {
 		const out = siteFromApplication(APP, [{ ...COND, condition_type: 'cash_contribution' }], {});
 		if (!('feature' in out)) throw new Error('expected a feature');
-		expect(out.feature.properties.conditions[0].type).toBe('landscaping');
+		expect(out.feature.properties.conditions[0].type).toBe('other');
 	});
 });

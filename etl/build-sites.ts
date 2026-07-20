@@ -19,7 +19,8 @@ export function readSites(
 ): { features: SiteFeature[]; misses: string[] } {
 	const apps = db
 		.prepare(
-			`SELECT a.id, a.aic_ref, a.ward, a.status, a.raw_metadata_json
+			`SELECT a.id, a.aic_ref, a.ward, a.status, a.raw_metadata_json, a.lat, a.lng, a.source_url,
+			        (SELECT ad.address FROM addresses ad WHERE ad.application_id = a.id LIMIT 1) AS address
 			 FROM applications a
 			 WHERE EXISTS (SELECT 1 FROM conditions c
 			               WHERE c.application_id = a.id AND c.physically_verifiable = 1)
@@ -28,8 +29,9 @@ export function readSites(
 		.all() as unknown as AppRow[];
 
 	const condStmt = db.prepare(
-		`SELECT c.condition_type, c.raw_text, c.description, d.url
-		 FROM conditions c JOIN documents d ON d.id = c.document_id
+		`SELECT c.condition_type, c.raw_text, c.description, c.instruction, c.feature, c.source,
+		        d.url AS doc_url
+		 FROM conditions c LEFT JOIN documents d ON d.id = c.document_id
 		 WHERE c.application_id = ? AND c.physically_verifiable = 1
 		 ORDER BY c.id`
 	);
@@ -37,17 +39,25 @@ export function readSites(
 	const features: SiteFeature[] = [];
 	const misses: string[] = [];
 	for (const app of apps) {
-		const conditions = condStmt.all(app.id) as unknown as ConditionRow[];
+		const raw = condStmt.all(app.id) as unknown as (ConditionRow & { doc_url: string | null })[];
+		const conditions: ConditionRow[] = raw.map((r) => ({
+			condition_type: r.condition_type,
+			raw_text: r.raw_text,
+			description: r.description,
+			url: r.doc_url ?? app.source_url ?? '',
+			instruction: r.instruction,
+			feature: r.feature,
+			source: r.source
+		}));
 
 		// siteFromApplication silently coerces an unrecognized condition_type to
-		// 'landscaping' (a deliberately-kept Task 2 behavior, locked by a test).
-		// Detect that here against the raw rows *before* coercion, so a bad
-		// upstream value never passes through unnoticed.
+		// 'other'. Detect that here against the raw rows *before* coercion, so a
+		// bad upstream value never passes through unnoticed.
 		for (const row of conditions) {
 			if (!KNOWN_CONDITION_TYPES.has(row.condition_type)) {
 				console.error(
 					`WARNING — ${app.aic_ref}: unrecognized condition_type ` +
-						`"${row.condition_type}" coerced to "landscaping"`
+						`"${row.condition_type}" coerced to "other"`
 				);
 			}
 		}

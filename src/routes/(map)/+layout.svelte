@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type maplibregl from 'maplibre-gl';
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
@@ -97,7 +98,7 @@
 	let listOpen = $state(false);
 	// map.getCenter() is not reactive — mirror it into $state on moveend so the
 	// fallback origin tracks where the user panned to.
-	let mapCenter = $state({ lat: 43.645, lng: -79.39 });
+	let mapCenter = $state({ lat: 43.6605, lng: -79.3957 }); // UofT St. George campus
 
 	// Geolocation fallback: sort from map centre when we don't have a fix.
 	let origin = $derived(appState.userPos ?? mapCenter);
@@ -155,9 +156,11 @@
 <button class="list-toggle" onclick={() => (listOpen = !listOpen)} aria-label="List of nearby sites">
 	<List weight="bold" size={18} /> List
 </button>
-<button class="fab" onclick={nearMe}>
-	<NavigationArrow weight="bold" size={18} /> Near me
-</button>
+{#if !page.url.pathname.startsWith('/site/')}
+	<button class="fab" onclick={nearMe}>
+		<NavigationArrow weight="bold" size={18} /> Near me
+	</button>
+{/if}
 <Toast />
 
 {#if showHint}
