@@ -21,6 +21,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Typecheck (svelte-check)
+        run: npm run check
       - name: Unit tests (node)
         run: npm test
       - name: Workers-pool tests (real local D1)
