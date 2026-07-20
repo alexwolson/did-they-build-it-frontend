@@ -131,6 +131,7 @@
 
 <MapCanvas
 	onSelect={openSite}
+	selectedSiteId={page.params.siteId ?? null}
 	registerMap={(m, g) => {
 		geolocate = g;
 		m.on('moveend', () => {
