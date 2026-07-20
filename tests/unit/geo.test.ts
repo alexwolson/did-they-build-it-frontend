@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDistance, haversineM, sortByDistance } from '../../src/lib/geo';
+import { circlePolygon, formatDistance, haversineM, sortByDistance } from '../../src/lib/geo';
 import type { SiteFeature } from '../../src/lib/types';
 
 const at = (lng: number, lat: number, siteId: string): SiteFeature => ({
@@ -23,6 +23,22 @@ describe('formatDistance', () => {
 	it('metres under 1 km, one-decimal km above', () => {
 		expect(formatDistance(87)).toBe('87 m');
 		expect(formatDistance(1400)).toBe('1.4 km');
+	});
+});
+
+describe('circlePolygon', () => {
+	it('closes the ring and every vertex sits ~radius metres from the centre', () => {
+		const lng = -79.3957;
+		const lat = 43.6605;
+		const poly = circlePolygon(lng, lat, 55, 32);
+		const ring = poly.geometry.coordinates[0];
+		expect(ring).toHaveLength(33); // steps + 1 (closed)
+		expect(ring[0]).toEqual(ring[ring.length - 1]); // first === last
+		for (const [plng, plat] of ring) {
+			const d = haversineM({ lat, lng }, { lat: plat, lng: plng });
+			expect(d).toBeGreaterThan(50);
+			expect(d).toBeLessThan(60);
+		}
 	});
 });
 

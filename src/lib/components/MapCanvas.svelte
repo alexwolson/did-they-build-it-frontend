@@ -9,20 +9,38 @@
 	import { RING_COLORS, dominantType, siteRing } from '$lib/status';
 	import { CONDITION_META } from '$lib/condition-meta';
 	import { civicFreshMapStyle } from '$lib/map-style';
+	import { circlePolygon } from '$lib/geo';
 	import TeardropMarker from './TeardropMarker.svelte';
 	import ClusterMarker from './ClusterMarker.svelte';
 
 	let {
 		onSelect,
+		selectedSiteId = null,
 		registerMap
 	}: {
 		onSelect: (siteId: string) => void;
+		selectedSiteId?: string | null;
 		registerMap?: (map: maplibregl.Map, geolocate: maplibregl.GeolocateControl) => void;
 	} = $props();
 
 	let container: HTMLDivElement;
 	let mapRef: maplibregl.Map | undefined;
 	let sourceReady = $state(false);
+
+	// The "scan around here" zone (~55 m circle) for the selected site: a real
+	// ground-distance ring so it stays the right physical size at any zoom. All we
+	// have is a point per site (no footprint), so this reads as "look around here",
+	// not a precise outline. applyHighlight is defined once the map loads; the
+	// $effect below re-runs it whenever the selection — or the sites list — changes.
+	const SCAN_RADIUS_M = 55;
+	const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
+	let applyHighlight: ((id: string | null) => void) | undefined;
+
+	$effect(() => {
+		const id = selectedSiteId;
+		void appState.sites; // re-apply once site data arrives (e.g. deep-linked /site/x)
+		if (sourceReady) applyHighlight?.(id);
+	});
 
 	// Sites/status changed → refresh the clustered source; the 'render' handler
 	// then re-syncs the DOM markers (top-level $effect; no-ops until source exists).
@@ -73,6 +91,7 @@
 		};
 		const markers: Record<string, Rec> = {};
 		let onScreen: Record<string, Rec> = {};
+		let currentSelected: string | null = null;
 
 		const cancelIdle = onIdle(async () => {
 			const [{ default: maplibregl }] = await Promise.all([
@@ -160,6 +179,9 @@
 							if (drop && p.ringColor) drop.style.borderColor = p.ringColor;
 							rec.status = p.ringColor;
 						}
+						// Lift the selected pin above its neighbours so it's never occluded
+						// by the scan-zone ring or nearby markers.
+						rec.el.style.zIndex = p.siteId === currentSelected ? '5' : '';
 					}
 					markers[id] = rec;
 					next[id] = rec;
@@ -193,11 +215,59 @@
 					paint: { 'circle-radius': 1, 'circle-opacity': 0 }
 				});
 
+				// Selected-site "scan zone": flat soft-filled circle + solid ring, drawn
+				// under the DOM markers. Empty until a site is selected.
+				map.addSource('scan-zone', { type: 'geojson', data: EMPTY_FC });
+				map.addLayer({
+					id: 'scan-zone-fill',
+					type: 'fill',
+					source: 'scan-zone',
+					paint: { 'fill-color': '#0fa98e', 'fill-opacity': 0.14 }
+				});
+				map.addLayer({
+					id: 'scan-zone-ring',
+					type: 'line',
+					source: 'scan-zone',
+					paint: { 'line-color': '#0fa98e', 'line-width': 2, 'line-opacity': 0.9 }
+				});
+
+				applyHighlight = (id: string | null) => {
+					currentSelected = id;
+					const src = map.getSource('scan-zone') as maplibregl.GeoJSONSource | undefined;
+					const site = id
+						? appState.sites.find((s) => s.properties.siteId === id)
+						: undefined;
+					if (!site) {
+						src?.setData(EMPTY_FC);
+						map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 }); // undo the peek offset
+						updateMarkers();
+						return;
+					}
+					const [lng, lat] = site.geometry.coordinates;
+					src?.setData({
+						type: 'FeatureCollection',
+						features: [circlePolygon(lng, lat, SCAN_RADIUS_M)]
+					});
+					updateMarkers(); // restyle the now-selected marker
+					// Fly to the site, reserving the bottom ~72% of the viewport for the
+					// detail sheet so the pin + zone sit in the visible strip above it
+					// ("peek above sheet"). MapLibre makes this an instant jump when the
+					// user prefers reduced motion. Zoom in enough to un-cluster and read
+					// the ~55 m ring clearly.
+					map.flyTo({
+						center: [lng, lat],
+						zoom: Math.max(map.getZoom(), 16.5),
+						padding: { top: 56, bottom: Math.round(window.innerHeight * 0.72), left: 24, right: 24 },
+						duration: 700
+					});
+				};
+
 				map.on('render', updateMarkers);
 				map.on('moveend', updateMarkers);
 
 				sourceReady = true;
 				registerMap?.(map, geolocate);
+				applyHighlight(selectedSiteId); // honour a deep-linked /site/[id] at load
 			});
 		});
 
