@@ -4,6 +4,10 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<!-- Map tiles/sprite/glyphs come from openfreemap — warm the connection early so the
+		     deferred MapLibre boot doesn't pay DNS+TLS setup cost on top of its own work. -->
+		<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+		<link rel="dns-prefetch" href="https://tiles.openfreemap.org" />
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
