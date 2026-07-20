@@ -29,6 +29,7 @@ export function createQueue(deps: {
 	storage: StorageLike;
 	post: (p: SubmissionPayload) => Promise<PostResult>;
 	onChange?: (pending: number) => void;
+	onSent?: () => void;
 }) {
 	const read = (): QueuedItem[] => JSON.parse(deps.storage.getItem(KEY) ?? '[]');
 	const write = (items: QueuedItem[]) => {
@@ -39,7 +40,10 @@ export function createQueue(deps: {
 	async function submit(p: SubmissionPayload): Promise<QueueResult> {
 		try {
 			const res = await deps.post(p);
-			if (res.ok) return { state: 'sent', id: res.id };
+			if (res.ok) {
+				deps.onSent?.();
+				return { state: 'sent', id: res.id };
+			}
 			return { state: 'rejected' }; // 4xx/5xx response: retrying the same payload won't help
 		} catch {
 			write([...read(), { ...p, nonce: crypto.randomUUID() }]); // network failure: keep it safe, retry later
@@ -61,6 +65,7 @@ export function createQueue(deps: {
 				const res = await deps.post(stripNonce(item)); // upsert semantics server-side → retries are idempotent
 				if (res.ok) {
 					resolvedNonces.add(item.nonce); // sent — terminal
+					deps.onSent?.();
 				} else if (res.status >= 400 && res.status < 500) {
 					resolvedNonces.add(item.nonce); // permanently rejected — retrying can't help, terminal
 				}

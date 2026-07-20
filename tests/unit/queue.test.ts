@@ -129,4 +129,23 @@ describe('createQueue', () => {
 		await q.flush();
 		expect(q.pending()).toBe(0);
 	});
+
+	it('calls onSent after a successful submit and flush, but not when merely queued', async () => {
+		const onSent = vi.fn();
+		const post = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, id: 'a' }) // direct submit succeeds
+			.mockRejectedValueOnce(new Error('x')) // next submit fails — goes to queue
+			.mockResolvedValue({ ok: true, id: 'i' }); // flush succeeds
+		const q = createQueue({ storage: memStorage(), post, onSent });
+
+		await q.submit(payload); // sent — onSent fires
+		expect(onSent).toHaveBeenCalledTimes(1);
+
+		await q.submit(payload); // queued — no additional onSent
+		expect(onSent).toHaveBeenCalledTimes(1);
+
+		await q.flush(); // sent — onSent fires again
+		expect(onSent).toHaveBeenCalledTimes(2);
+	});
 });

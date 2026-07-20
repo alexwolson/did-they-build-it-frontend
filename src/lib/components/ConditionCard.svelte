@@ -19,7 +19,10 @@
 		(_queue ??= createQueue({
 			storage: localStorage,
 			post: postSubmission(fetch),
-			onChange: (n) => (appState.pendingSync = n)
+			onChange: (n) => (appState.pendingSync = n),
+			// Decoupled from the layout: dispatch an event rather than importing
+			// refreshStatus directly, so the layout owns when/how status refreshes.
+			onSent: () => document.dispatchEvent(new CustomEvent('dtbi:sent'))
 		}));
 
 	// idle → sending → sent | queued; myVerdict persists per device via localStorage
