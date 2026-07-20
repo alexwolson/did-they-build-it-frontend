@@ -72,6 +72,25 @@ export async function allStatusCounts(db: D1Database): Promise<Record<string, St
 	return out;
 }
 
+/**
+ * Read-only ownership check: does this submission exist and belong to this
+ * device? Used to verify ownership BEFORE writing to R2, without touching
+ * photo_key — attachPhoto (unchanged) remains the sole place that commits
+ * photo_key, so callers can defer that commit until after an R2 write
+ * succeeds and never end up with a dangling photo_key.
+ */
+export async function submissionOwnedByDevice(
+	db: D1Database,
+	submissionId: string,
+	deviceId: string
+): Promise<boolean> {
+	const row = await db
+		.prepare('SELECT 1 FROM submissions WHERE id = ?1 AND device_id = ?2')
+		.bind(submissionId, deviceId)
+		.first();
+	return row !== null;
+}
+
 export async function attachPhoto(
 	db: D1Database,
 	submissionId: string,
