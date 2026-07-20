@@ -1,12 +1,13 @@
 :root {
-	--bg: #f8fafc;
+	--bg: #f1f6f9;
 	--surface: #ffffff;
-	--ink: #0f172a;
+	--ink: #0f2436;
 	--ink-soft: #475569;
-	--brand: #0f766e;
+	--brand: #0d9488;
+	--brand-deep: #0f766e;
 	--present: #16a34a;
-	--absent: #dc2626;
-	--unclear: #d97706;
+	--absent: #e11d48;
+	--unclear: #f59e0b;
 	--radius: 14px;
 	--shadow: 0 8px 30px rgb(15 23 42 / 0.14);
 }

@@ -88,9 +88,9 @@
 
 			const map = new maplibregl.Map({
 				container,
-				style: 'https://tiles.openfreemap.org/styles/positron',
+				style: 'https://tiles.openfreemap.org/styles/bright',
 				center: [-79.39, 43.645],
-				zoom: 13,
+				zoom: 14, // start close enough that the colourful per-type emoji pins show, not only clusters
 				attributionControl: { compact: true } // OpenFreeMap/OSM attribution comes from the style — required, do not remove
 			});
 
@@ -133,7 +133,7 @@
 					source: 'sites',
 					filter: ['has', 'point_count'],
 					paint: {
-						'circle-color': '#0f766e',
+						'circle-color': '#0d9488',
 						'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24],
 						'circle-stroke-width': 3,
 						'circle-stroke-color': '#ffffff'
