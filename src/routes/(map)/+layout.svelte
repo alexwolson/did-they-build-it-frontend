@@ -1,12 +1,29 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import type maplibregl from 'maplibre-gl';
 	import MapCanvas from '$lib/components/MapCanvas.svelte';
+	import NearbyList from '$lib/components/NearbyList.svelte';
 	import { appState } from '$lib/app-state.svelte';
 
 	let { data, children } = $props();
 	$effect.pre(() => {
 		appState.sites = data.sites.features;
 	});
+
+	let geolocate: maplibregl.GeolocateControl | undefined;
+	let listOpen = $state(false);
+	// map.getCenter() is not reactive — mirror it into $state on moveend so the
+	// fallback origin tracks where the user panned to.
+	let mapCenter = $state({ lat: 43.645, lng: -79.39 });
+
+	// Geolocation fallback: sort from map centre when we don't have a fix.
+	let origin = $derived(appState.userPos ?? mapCenter);
+
+	function nearMe() {
+		const ok = geolocate?.trigger() ?? false;
+		listOpen = true; // open regardless — falls back to distance-from-map-centre
+		if (!ok) console.warn('geolocate control not ready');
+	}
 </script>
 
 <svelte:head>
@@ -14,21 +31,44 @@
 	<meta name="description" content="Check whether Toronto developers actually built what their approvals promised." />
 </svelte:head>
 
-<MapCanvas onSelect={(siteId) => goto(`/site/${siteId}`)} />
+<MapCanvas
+	onSelect={(siteId) => goto(`/site/${siteId}`)}
+	registerMap={(m, g) => {
+		geolocate = g;
+		m.on('moveend', () => {
+			const c = m.getCenter();
+			mapCenter = { lat: c.lat, lng: c.lng };
+		});
+		g.on('geolocate', () => (listOpen = true));
+		g.on('error', () => (listOpen = true)); // denied/unavailable → list still works
+	}}
+/>
 
 <header class="brand">Did They Build It?</header>
+<button class="list-toggle" onclick={() => (listOpen = !listOpen)} aria-label="List of nearby sites">☰ List</button>
+<button class="fab" onclick={nearMe}>📍 Near me</button>
+
+<NearbyList bind:open={listOpen} {origin} onSelect={(siteId) => goto(`/site/${siteId}`)} />
 
 {@render children()}
 
 <style>
-	.brand {
+	.brand { position: fixed; top: 12px; left: 12px; background: var(--surface); padding: 8px 14px; border-radius: var(--radius); box-shadow: var(--shadow); font-weight: 700; }
+	.list-toggle { position: fixed; top: 12px; right: 12px; background: var(--surface); border: 0; padding: 8px 14px; border-radius: var(--radius); box-shadow: var(--shadow); cursor: pointer; }
+	.fab {
 		position: fixed;
-		top: 12px;
-		left: 12px;
-		background: var(--surface);
-		padding: 8px 14px;
-		border-radius: var(--radius);
-		box-shadow: var(--shadow);
+		right: 16px;
+		bottom: calc(24px + env(safe-area-inset-bottom));
+		background: var(--brand);
+		color: #fff;
+		border: 0;
+		border-radius: 999px;
+		padding: 16px 22px;
+		font-size: 1.05rem;
 		font-weight: 700;
+		box-shadow: var(--shadow);
+		cursor: pointer;
+		transition: transform 120ms ease;
 	}
+	.fab:active { transform: scale(0.94); }
 </style>
