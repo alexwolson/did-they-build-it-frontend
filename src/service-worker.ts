@@ -10,6 +10,7 @@ const DATA = `data-${version}`;
 const TILES = 'tiles'; // NOT version-scoped: tiles are URL-hashed and survive deploys
 const TILES_HOST = 'tiles.openfreemap.org';
 const TILE_CAP = 250;
+const NAV_TIMEOUT_MS = 3000; // fall back to the cached shell if navigation stalls this long
 
 // Precache the hashed app shell. Exclude /data/sites.json — it is served by the
 // stale-while-revalidate `data` strategy, not treated as an immutable asset.
@@ -75,18 +76,38 @@ async function handle(event: FetchEvent, cls: RequestClass, request: Request): P
 
 	if (cls === 'navigate') {
 		const cache = await caches.open(SHELL);
-		try {
-			const res = await fetch(request);
+		// Offline shell: this exact URL if cached, else "/" (any deep-linked route still
+		// boots the SPA, which then client-routes).
+		const cached = (await cache.match(request)) ?? (await cache.match('/'));
+		const network = fetch(request).then(async (res) => {
 			if (res.ok) await cache.put(request, res.clone());
 			return res;
+		});
+
+		// Nothing cached yet (first-ever visit): we must wait for the network.
+		if (!cached) {
+			try {
+				return await network;
+			} catch {
+				return Response.error();
+			}
+		}
+
+		// Network-first, but don't hang on a stalled venue connection: race the network
+		// against a timeout and serve the cached shell if it doesn't answer in time.
+		let timer: ReturnType<typeof setTimeout>;
+		const timeout = new Promise<never>((_, reject) => {
+			timer = setTimeout(() => reject(new Error('nav-timeout')), NAV_TIMEOUT_MS);
+		});
+		try {
+			return await Promise.race([network, timeout]);
 		} catch {
-			// Offline: serve this exact URL if cached, else fall back to cached "/"
-			// so any deep-linked route still boots the SPA (which then client-routes).
-			return (
-				(await cache.match(request)) ??
-				(await cache.match('/')) ??
-				Response.error()
-			);
+			// Network failed or stalled past the timeout — serve the shell now, but keep
+			// the in-flight request alive so its cache.put still lands for next time.
+			event.waitUntil(network.catch(() => {}));
+			return cached;
+		} finally {
+			clearTimeout(timer!);
 		}
 	}
 
