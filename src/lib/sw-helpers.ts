@@ -35,8 +35,11 @@ export function classifyRequest(input: {
 	return 'passthrough';
 }
 
-// LRU-evict a cache down to `max` entries. cache.keys() returns Requests in
-// insertion order, so the front is oldest. Only trims when over the cap.
+// Evict a cache down to `max` entries, oldest-first: cache.keys() returns Requests
+// in insertion order, so the front is the oldest. This is approximate LRU — a
+// re-cached (re-put) entry moves to the back. Only trims when over the cap. Note the
+// tiles bucket also holds the map style/sprite/glyphs, which are inserted first and
+// so are evicted first under heavy panning; they are re-cached on the next online load.
 export async function trimToCap(cache: Pick<Cache, 'keys' | 'delete'>, max: number): Promise<void> {
 	const keys = await cache.keys();
 	if (keys.length <= max) return;

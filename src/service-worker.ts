@@ -17,7 +17,19 @@ const PRECACHE = [...build, ...files].filter((path) => path !== '/data/sites.jso
 const PRECACHE_SET = new Set([...build, ...files]);
 
 sw.addEventListener('install', (event) => {
-	event.waitUntil(caches.open(SHELL).then((cache) => cache.addAll(PRECACHE)));
+	// Precache the hashed shell assets, plus a best-effort copy of the root document
+	// so the SPA boots on the FIRST offline load. This app is SSR — there is no static
+	// index.html in `files`, and the network-first navigate handler only caches "/" once
+	// the SW is already controlling (from the 2nd load on). cache.add('/') is non-atomic
+	// (its own catch) so a transient failure can't fail the whole install. SHELL is
+	// version-scoped and navigations stay network-first, so this copy never goes stale.
+	event.waitUntil(
+		(async () => {
+			const cache = await caches.open(SHELL);
+			await cache.addAll(PRECACHE);
+			await cache.add('/').catch(() => {});
+		})()
+	);
 	// No skipWaiting: a new worker waits and activates on the next full load, so we
 	// never swap hashed chunks under a running session.
 });
