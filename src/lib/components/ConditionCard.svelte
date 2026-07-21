@@ -2,6 +2,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { burst } from '$lib/confetti';
+	import { haptic, HAPTIC_CELEBRATE, HAPTIC_TICK } from '$lib/haptics';
 	import { deviceId } from '$lib/device';
 	import { createQueue, postSubmission } from '$lib/queue';
 	import { appState } from '$lib/app-state.svelte';
@@ -47,10 +48,13 @@
 		const isUpdate = myVerdict !== null;
 		myVerdict = verdict; // optimistic: < 50 ms acknowledgment
 		localStorage.setItem(`dtbi:v:${condition.key}`, verdict);
-		navigator.vibrate?.(15);
 		if (!isUpdate) {
+			// First verdict — the fun beat: celebratory buzz paired with the confetti.
+			haptic(HAPTIC_CELEBRATE);
 			burst(e.clientX, e.clientY);
 			appState.tally += 1;
+		} else {
+			haptic(HAPTIC_TICK); // quiet tick when changing an existing verdict
 		}
 		const result = await queue().submit({
 			deviceId: deviceId(),
