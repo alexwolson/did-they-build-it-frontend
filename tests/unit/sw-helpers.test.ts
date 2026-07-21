@@ -10,7 +10,7 @@ const base = {
 	tilesHost: 'tiles.openfreemap.org'
 };
 
-function classify(over: Partial<Parameters<typeof classifyRequest>[0]> & { url: string }): RequestClass {
+function classify(over: { url: string } & Partial<Omit<Parameters<typeof classifyRequest>[0], 'url'>>): RequestClass {
 	const { url, ...rest } = over;
 	return classifyRequest({ ...base, ...rest, url: new URL(url) });
 }
