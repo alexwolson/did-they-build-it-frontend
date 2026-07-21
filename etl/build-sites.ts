@@ -22,18 +22,21 @@ export function readSites(
 			`SELECT a.id, a.aic_ref, a.ward, a.status, a.raw_metadata_json, a.lat, a.lng, a.source_url,
 			        (SELECT ad.address FROM addresses ad WHERE ad.application_id = a.id LIMIT 1) AS address
 			 FROM applications a
-			 WHERE EXISTS (SELECT 1 FROM conditions c
-			               WHERE c.application_id = a.id AND c.physically_verifiable = 1)
+			 WHERE EXISTS (SELECT 1 FROM verifiable_conditions vc
+			               JOIN verification_tasks t ON t.condition_id = vc.condition_id
+			               WHERE vc.application_id = a.id
+			                 AND t.is_real_commitment = 1 AND t.is_publicly_checkable = 1)
 			 ORDER BY a.aic_ref`
 		)
 		.all() as unknown as AppRow[];
 
 	const condStmt = db.prepare(
-		`SELECT c.condition_type, c.raw_text, c.description, c.instruction, c.feature, c.source,
-		        d.url AS doc_url
-		 FROM conditions c LEFT JOIN documents d ON d.id = c.document_id
-		 WHERE c.application_id = ? AND c.physically_verifiable = 1
-		 ORDER BY c.id`
+		`SELECT vc.condition_type, vc.raw_text, vc.description, t.instruction, t.feature, vc.source,
+		        vc.source_url AS doc_url
+		 FROM verifiable_conditions vc
+		 JOIN verification_tasks t ON t.condition_id = vc.condition_id
+		 WHERE vc.application_id = ? AND t.is_real_commitment = 1 AND t.is_publicly_checkable = 1
+		 ORDER BY vc.condition_id`
 	);
 
 	const features: SiteFeature[] = [];
