@@ -9,6 +9,7 @@
 	import { RING_COLORS, dominantType, siteRing } from '$lib/status';
 	import { CONDITION_META } from '$lib/condition-meta';
 	import { civicFreshMapStyle } from '$lib/map-style';
+	import { isLowEndDevice } from '$lib/device';
 	import { circlePolygon } from '$lib/geo';
 	import TeardropMarker from './TeardropMarker.svelte';
 	import ClusterMarker from './ClusterMarker.svelte';
@@ -97,6 +98,15 @@
 			]);
 			if (cancelled) return; // unmounted while the runtime was still loading
 
+			// Warm the worker pool / GL resources now so they initialise concurrently
+			// with the style fetch below, instead of lazily on first Map construction.
+			maplibregl.prewarm();
+
+			// Adaptive loading: only devices that positively report a weak signal
+			// (low RAM / data-saver) are degraded. On a capable device lowEnd is
+			// false and the options below are identical to the previous defaults.
+			const lowEnd = isLowEndDevice();
+
 			const map = new maplibregl.Map({
 				container,
 				style: await civicFreshMapStyle(),
@@ -107,7 +117,13 @@
 				// control, so an accidental two-finger twist (easy while pinch-zooming) would
 				// leave the map stuck tilted. Disable rotation everywhere but keep pinch-zoom.
 				dragRotate: false,
-				pitchWithRotate: false
+				pitchWithRotate: false,
+				// Don't re-fetch tiles mid-session on cache expiry — this is a
+				// point-in-time scanning map, not a live feed. Saves network + decode.
+				refreshExpiredTiles: false,
+				// Drop the label crossfade on low-end to cut per-frame placement work
+				// (300 = MapLibre's default, so capable devices are unchanged).
+				fadeDuration: lowEnd ? 0 : 300
 			});
 			map.touchZoomRotate.disableRotation(); // two-finger pinch still zooms; twist no longer rotates
 			map.keyboard.disableRotation();
@@ -220,7 +236,9 @@
 					data: buildMapData(appState.sites, appState.statusCounts),
 					cluster: true,
 					clusterMaxZoom: 15,
-					clusterRadius: 55,
+					// Cluster more aggressively on low-end devices → fewer simultaneous
+					// DOM markers (the known cost centre) at any given viewport.
+					clusterRadius: lowEnd ? 80 : 55,
 					promoteId: 'siteId'
 				});
 				// Invisible circle layer anchors the source so querySourceFeatures returns
