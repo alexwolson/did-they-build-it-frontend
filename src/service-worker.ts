@@ -48,10 +48,10 @@ sw.addEventListener('fetch', (event) => {
 	// bypass (/api/*) and passthrough: do not intercept — straight to network.
 	if (cls === 'bypass' || cls === 'passthrough') return;
 
-	event.respondWith(handle(cls, request));
+	event.respondWith(handle(event, cls, request));
 });
 
-async function handle(cls: RequestClass, request: Request): Promise<Response> {
+async function handle(event: FetchEvent, cls: RequestClass, request: Request): Promise<Response> {
 	if (cls === 'immutable') {
 		const cache = await caches.open(SHELL);
 		const cached = await cache.match(request);
@@ -78,13 +78,14 @@ async function handle(cls: RequestClass, request: Request): Promise<Response> {
 		}
 	}
 
-	if (cls === 'data') return staleWhileRevalidate(request, DATA);
-	if (cls === 'tiles') return staleWhileRevalidate(request, TILES, TILE_CAP);
+	if (cls === 'data') return staleWhileRevalidate(event, request, DATA);
+	if (cls === 'tiles') return staleWhileRevalidate(event, request, TILES, TILE_CAP);
 
 	return fetch(request);
 }
 
 async function staleWhileRevalidate(
+	event: FetchEvent,
 	request: Request,
 	cacheName: string,
 	cap?: number
@@ -100,5 +101,10 @@ async function staleWhileRevalidate(
 			return res;
 		})
 		.catch(() => undefined);
-	return cached ?? (await network) ?? Response.error();
+	if (cached) {
+		// Keep the worker alive so the background refresh + trim actually complete.
+		event.waitUntil(network);
+		return cached;
+	}
+	return (await network) ?? Response.error();
 }
