@@ -2,7 +2,11 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- viewport-fit=cover lets the map fill edge-to-edge AND makes the iOS
+		     env(safe-area-inset-*) values resolve to non-zero — without it they are
+		     always 0, so the safe-area padding on the FAB/sheets/top controls is a
+		     no-op on notched iPhones. Edge-anchored controls add the insets in CSS. -->
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
 		<meta name="theme-color" content="#0f766e" />

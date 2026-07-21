@@ -177,8 +177,10 @@
 <style>
 	.brand {
 		position: fixed;
-		top: 12px;
-		left: 12px;
+		/* Clear the status bar / Dynamic Island (and a side notch in landscape);
+		   env() is non-zero only because the viewport is viewport-fit=cover. */
+		top: calc(12px + env(safe-area-inset-top));
+		left: calc(12px + env(safe-area-inset-left));
 		background: var(--surface);
 		border: 1px solid var(--line);
 		padding: 8px 14px;
@@ -191,7 +193,7 @@
 	}
 	.counter {
 		position: fixed;
-		top: 58px;
+		top: calc(58px + env(safe-area-inset-top));
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
@@ -210,8 +212,8 @@
 	}
 	.list-toggle {
 		position: fixed;
-		top: 12px;
-		right: 12px;
+		top: calc(12px + env(safe-area-inset-top));
+		right: calc(12px + env(safe-area-inset-right));
 		display: flex;
 		align-items: center;
 		gap: 6px;
