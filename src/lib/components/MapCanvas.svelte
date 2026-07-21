@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Type-only import keeps the ~270KB-gzip maplibre-gl runtime out of the initial
-	// route chunk; the real module (JS + CSS) is dynamically imported on idle below.
+	// route chunk; the real module (JS + CSS) is dynamically imported in onMount.
 	import type maplibregl from 'maplibre-gl';
 	import type { Point } from 'geojson';
 	import { mount, unmount, onMount } from 'svelte';
@@ -26,6 +26,10 @@
 	let container: HTMLDivElement;
 	let mapRef: maplibregl.Map | undefined;
 	let sourceReady = $state(false);
+	// The branded boot splash covers the map shell until the base map has painted,
+	// so first paint shows the app identity (a fast, SSR'd LCP element) instead of a
+	// blank land-coloured rectangle that only resolves once MapLibre finishes booting.
+	let booted = $state(false);
 
 	// The "scan around here" zone (~55 m circle) for the selected site: a real
 	// ground-distance ring so it stays the right physical size at any zoom. All we
@@ -63,20 +67,8 @@
 		};
 	}
 
-	function onIdle(cb: () => void): () => void {
-		const w = window as typeof window & {
-			requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-			cancelIdleCallback?: (handle: number) => void;
-		};
-		if (typeof w.requestIdleCallback === 'function') {
-			const handle = w.requestIdleCallback(cb, { timeout: 200 });
-			return () => w.cancelIdleCallback?.(handle);
-		}
-		const handle = setTimeout(cb, 1);
-		return () => clearTimeout(handle);
-	}
-
 	onMount(() => {
+		let cancelled = false;
 		let mapForCleanup: maplibregl.Map | undefined;
 
 		// DOM markers synced to the clustered source (so we can use our own flat
@@ -93,11 +85,16 @@
 		let onScreen: Record<string, Rec> = {};
 		let currentSelected: string | null = null;
 
-		const cancelIdle = onIdle(async () => {
+		// Boot the map eagerly (no requestIdleCallback gate): the map is the LCP
+		// element, so kicking off the ~262 KB maplibre chunk + style fetch the moment
+		// we mount lets it download, parse, and request tiles as early as possible.
+		// Deferring to idle only pushed LCP later; the boot splash covers the gap.
+		(async () => {
 			const [{ default: maplibregl }] = await Promise.all([
 				import('maplibre-gl'),
 				import('maplibre-gl/dist/maplibre-gl.css')
 			]);
+			if (cancelled) return; // unmounted while the runtime was still loading
 
 			const map = new maplibregl.Map({
 				container,
@@ -106,6 +103,13 @@
 				zoom: 14.3,
 				attributionControl: { compact: true }
 			});
+
+			// Reveal the live map once the base style has painted; the timeout is a
+			// safety net so a slow/failed tile or style fetch can never trap the user
+			// behind the splash.
+			const reveal = () => { if (!cancelled) booted = true; };
+			map.on('load', reveal);
+			setTimeout(reveal, 8000);
 
 			const geolocate = new maplibregl.GeolocateControl({
 				positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
@@ -269,10 +273,10 @@
 				registerMap?.(map, geolocate);
 				applyHighlight(selectedSiteId); // honour a deep-linked /site/[id] at load
 			});
-		});
+		})();
 
 		return () => {
-			cancelIdle();
+			cancelled = true;
 			for (const id in markers) {
 				markers[id].marker.remove();
 				unmount(markers[id].instance);
@@ -284,13 +288,62 @@
 
 <div class="map" bind:this={container}></div>
 
+<!-- SSR'd branded boot cover. It paints at first contentful paint, giving the page
+     a large, on-identity Largest-Contentful-Paint element (the title) instead of
+     waiting ~5s for the map's attribution text, then fades to reveal the live map. -->
+<div class="boot" class:booted aria-hidden={booted}>
+	<div class="boot-inner">
+		<h1 class="boot-title">Did They Build It?</h1>
+		<p class="boot-tag">Did Toronto developers build what they promised?</p>
+	</div>
+</div>
+
 <style>
 	.map {
 		position: fixed;
 		inset: 0;
 		/* Civic Fresh land colour so the shell reads as "map" from first paint,
-		   no white flash while MapLibre boots on idle. */
+		   no white flash while MapLibre boots. */
 		background-color: #e7eee9;
+	}
+	.boot {
+		position: fixed;
+		inset: 0;
+		z-index: 50; /* over the map + controls while booting; fades to reveal them */
+		display: grid;
+		place-items: center;
+		padding: 24px;
+		text-align: center;
+		background: var(--paper);
+	}
+	.boot.booted {
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		transition: opacity 500ms ease, visibility 0s linear 500ms;
+	}
+	.boot-title {
+		margin: 0;
+		font-family: var(--font-disp);
+		font-variation-settings: 'opsz' 48, 'SOFT' 60, 'WONK' 1;
+		font-weight: 700;
+		font-size: clamp(2rem, 9vw, 3.25rem);
+		line-height: 1.05;
+		letter-spacing: -0.01em;
+		color: var(--ink);
+	}
+	.boot-tag {
+		margin: 12px auto 0;
+		max-width: 24ch;
+		font-family: var(--font-body);
+		font-size: 1rem;
+		line-height: 1.35;
+		color: var(--ink-soft);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.boot.booted {
+			transition: none;
+		}
 	}
 	/* We trigger geolocation from our own FAB. */
 	:global(.maplibregl-ctrl-geolocate) {
