@@ -29,7 +29,12 @@ export interface ConditionRow {
 
 export type Overrides = Record<string, { lat: number; lng: number }>;
 
-const SOURCES: readonly string[] = ['staff_report_condition', 'section_37', 'proposed_and_approved'];
+const SOURCES: readonly string[] = [
+	'staff_report_condition',
+	'section_37',
+	'olt_settlement',
+	'proposed_and_approved'
+];
 
 export function conditionKey(aicRef: string, type: string, rawText: string): string {
 	return createHash('sha256').update(`${aicRef}|${type}|${rawText}`).digest('hex').slice(0, 16);

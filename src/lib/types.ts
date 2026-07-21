@@ -11,8 +11,12 @@ export type ConditionType = (typeof CONDITION_TYPES)[number];
 
 // Commitment strength — separate from the condition type. Where the obligation
 // came from: a binding condition of approval, a secured Section 37 community
-// benefit, or an approved proposal.
-export type ConditionSource = 'staff_report_condition' | 'section_37' | 'proposed_and_approved';
+// benefit, an OLT/OMB settlement, or an approved proposal.
+export type ConditionSource =
+	| 'staff_report_condition'
+	| 'section_37'
+	| 'olt_settlement'
+	| 'proposed_and_approved';
 
 export interface SiteCondition {
 	key: string; // stable 16-hex condition_key

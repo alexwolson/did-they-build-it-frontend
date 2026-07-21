@@ -25,5 +25,6 @@ export const CONDITION_META: Record<ConditionType, { label: string; icon: Compon
 export const SOURCE_LABEL: Record<string, string> = {
 	staff_report_condition: 'Condition of approval',
 	section_37: 'Secured community benefit',
+	olt_settlement: 'OLT settlement condition',
 	proposed_and_approved: 'Approved proposal'
 };
