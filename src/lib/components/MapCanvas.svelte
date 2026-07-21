@@ -101,8 +101,15 @@
 				style: await civicFreshMapStyle(),
 				center: [-79.3957, 43.6605], // UofT St. George campus (where the demo sites are)
 				zoom: 14.3,
-				attributionControl: { compact: true }
+				attributionControl: { compact: true },
+				// North-up scanning tool: rotation/pitch add no value and there's no reset
+				// control, so an accidental two-finger twist (easy while pinch-zooming) would
+				// leave the map stuck tilted. Disable rotation everywhere but keep pinch-zoom.
+				dragRotate: false,
+				pitchWithRotate: false
 			});
+			map.touchZoomRotate.disableRotation(); // two-finger pinch still zooms; twist no longer rotates
+			map.keyboard.disableRotation();
 
 			// Reveal the live map once the base style has painted; the timeout is a
 			// safety net so a slow/failed tile or style fetch can never trap the user

@@ -23,6 +23,9 @@ body {
 	margin: 0;
 	height: 100%;
 	overscroll-behavior: none; /* viewport pull-to-refresh off */
+	/* Kill the grey flash iOS Safari paints on tap — we provide our own :active
+	   feedback (e.g. the FAB scale), so the default highlight is pure noise. */
+	-webkit-tap-highlight-color: transparent;
 }
 body {
 	font-family: var(--font-body);
