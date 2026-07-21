@@ -80,6 +80,7 @@
 			instance: Record<string, unknown>;
 			el: HTMLDivElement;
 			status?: string;
+			z?: string; // last-written z-index, so we only touch the DOM when it changes
 		};
 		const markers: Record<string, Rec> = {};
 		let onScreen: Record<string, Rec> = {};
@@ -158,7 +159,7 @@
 			}
 
 			function updateMarkers() {
-				if (!map.isSourceLoaded('sites')) return;
+				if (cancelled || !map.isSourceLoaded('sites')) return;
 				const next: Record<string, Rec> = {};
 				for (const f of map.querySourceFeatures('sites')) {
 					const coords = (f.geometry as Point).coordinates as [number, number];
@@ -184,8 +185,13 @@
 							rec.status = p.ringColor;
 						}
 						// Lift the selected pin above its neighbours so it's never occluded
-						// by the scan-zone ring or nearby markers.
-						rec.el.style.zIndex = p.siteId === currentSelected ? '5' : '';
+						// by the scan-zone ring or nearby markers. Only write to the DOM when
+						// it actually changes — this runs for every visible pin per update.
+						const wantZ = p.siteId === currentSelected ? '5' : '';
+						if (rec.z !== wantZ) {
+							rec.el.style.zIndex = wantZ;
+							rec.z = wantZ;
+						}
 					}
 					markers[id] = rec;
 					next[id] = rec;
@@ -266,8 +272,33 @@
 					});
 				};
 
-				map.on('render', updateMarkers);
-				map.on('moveend', updateMarkers);
+				// MapLibre already repositions the DOM markers on every frame; the
+				// reconciliation above only needs to run when the *set* of visible/
+				// clustered features changes (pan brings pins in, zoom splits clusters).
+				// Running it on every `render` frame made inertial panning janky, so
+				// throttle it to ~11 fps during continuous movement and take one exact
+				// pass on moveend. The pins still follow the map smoothly frame-to-frame.
+				let markerTimer = 0;
+				let lastMarkerRun = 0;
+				const MARKER_THROTTLE_MS = 90;
+				function scheduleMarkers() {
+					if (markerTimer) return; // a run is already pending
+					const wait = Math.max(0, MARKER_THROTTLE_MS - (performance.now() - lastMarkerRun));
+					markerTimer = window.setTimeout(() => {
+						markerTimer = 0;
+						lastMarkerRun = performance.now();
+						updateMarkers();
+					}, wait);
+				}
+				map.on('render', scheduleMarkers);
+				map.on('moveend', () => {
+					if (markerTimer) {
+						clearTimeout(markerTimer);
+						markerTimer = 0;
+					}
+					lastMarkerRun = performance.now();
+					updateMarkers(); // exact final state, no throttle lag once movement stops
+				});
 
 				sourceReady = true;
 				registerMap?.(map, geolocate);
