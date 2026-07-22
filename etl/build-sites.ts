@@ -22,20 +22,26 @@ export function readSites(
 			`SELECT a.id, a.aic_ref, a.ward, a.status, a.raw_metadata_json, a.lat, a.lng, a.source_url,
 			        (SELECT ad.address FROM addresses ad WHERE ad.application_id = a.id LIMIT 1) AS address
 			 FROM applications a
-			 WHERE EXISTS (SELECT 1 FROM verifiable_conditions vc
-			               JOIN verification_tasks t ON t.condition_id = vc.condition_id
-			               WHERE vc.application_id = a.id
-			                 AND t.is_real_commitment = 1 AND t.is_publicly_checkable = 1)
+			 WHERE EXISTS (SELECT 1 FROM verifiable_conditions vc WHERE vc.application_id = a.id)
 			 ORDER BY a.aic_ref`
 		)
 		.all() as unknown as AppRow[];
 
+	// The verifiable_conditions view already restricts to physically_verifiable=1 (the
+	// gate the old verification_tasks.is_real_commitment/is_publicly_checkable pair used
+	// to provide). New column shape: title = short label (feature), street_visibility =
+	// the "Go to X. Is there Y?" volunteer instruction (prompt), physicality = the full
+	// commitment text (raw_text + description). Aliased here so ConditionRow is unchanged.
 	const condStmt = db.prepare(
-		`SELECT vc.condition_type, vc.raw_text, vc.description, t.instruction, t.feature, vc.source,
-		        vc.source_url AS doc_url
+		`SELECT vc.condition_type,
+		        vc.physicality        AS raw_text,
+		        vc.physicality        AS description,
+		        vc.street_visibility  AS instruction,
+		        vc.title              AS feature,
+		        vc.source,
+		        vc.source_url         AS doc_url
 		 FROM verifiable_conditions vc
-		 JOIN verification_tasks t ON t.condition_id = vc.condition_id
-		 WHERE vc.application_id = ? AND t.is_real_commitment = 1 AND t.is_publicly_checkable = 1
+		 WHERE vc.application_id = ?
 		 ORDER BY vc.condition_id`
 	);
 

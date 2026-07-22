@@ -11,16 +11,15 @@ function fixtureDb(): DatabaseSync {
 		CREATE TABLE addresses (application_id INTEGER, address TEXT);
 		CREATE TABLE documents (id INTEGER PRIMARY KEY, application_id INTEGER, url TEXT, report_stage TEXT);
 		CREATE TABLE conditions (id INTEGER PRIMARY KEY, application_id INTEGER,
-			document_id INTEGER, condition_type TEXT, raw_text TEXT, description TEXT,
-			physically_verifiable INTEGER);
-		CREATE TABLE verification_tasks (condition_id INTEGER PRIMARY KEY,
-			is_real_commitment INTEGER, is_publicly_checkable INTEGER, feature TEXT,
-			instruction TEXT, confidence REAL);
+			document_id INTEGER, condition_type TEXT, title TEXT, physicality TEXT,
+			street_visibility TEXT, physically_verifiable INTEGER,
+			review_status TEXT, fulfillment_status TEXT);
 		CREATE VIEW verifiable_conditions AS
-			SELECT c.id AS condition_id, c.application_id, c.condition_type, c.raw_text,
-			       c.description, d.url AS source_url,
+			SELECT c.id AS condition_id, c.application_id, c.condition_type,
+			       c.title, c.physicality, c.street_visibility,
+			       c.review_status, c.fulfillment_status,
+			       d.url AS source_url, d.report_stage,
 			       CASE
-			           WHEN c.raw_text LIKE '%ection 37%' THEN 'section_37'
 			           WHEN d.report_stage = 'settlement' THEN 'olt_settlement'
 			           ELSE 'staff_report_condition'
 			       END AS source
@@ -39,33 +38,34 @@ function fixtureDb(): DatabaseSync {
 	);
 	db.prepare(`INSERT INTO addresses VALUES (1, '147 SPADINA AVE')`).run();
 	db.prepare(`INSERT INTO documents VALUES (1, 1, 'https://example.com/report.pdf', NULL)`).run();
+	// physically_verifiable = 1 → included. Maps: title→feature, physicality→description/rawText,
+	// street_visibility→prompt (via cleanPrompt, which strips the "Go to…" lead-in and answer options).
 	db.prepare(
-		`INSERT INTO conditions VALUES (1, 1, 1, 'landscaping', 'plant trees', 'Plant trees.', 1)`
+		`INSERT INTO conditions VALUES (1, 1, 1, 'landscaping', 'Street trees',
+			'Plant new street trees along the Spadina Avenue frontage.',
+			'Go to 147 Spadina Ave. Are there new street trees? Yes / No / Can''t tell.',
+			1, 'unreviewed', 'unknown')`
 	).run();
+	// physically_verifiable = 0 → must be excluded (the verifiable_conditions view filters it out).
 	db.prepare(
-		`INSERT INTO verification_tasks VALUES (1, 1, 1, 'Street trees', NULL, 1)`
+		`INSERT INTO conditions VALUES (2, 1, 1, 'community_facility', 'Childcare facility',
+			'Provide a licensed childcare facility within the development.', 'n/a',
+			0, 'unreviewed', 'unknown')`
 	).run();
-	db.prepare(
-		`INSERT INTO conditions VALUES (2, 1, 1, 'cash_contribution', 'pay money', 'Pay.', 0)`
-	).run(); // physically_verifiable = 0 → must be excluded
-	db.prepare(
-		`INSERT INTO conditions VALUES (3, 1, 1, 'public_art', 'install a mural', 'Mural.', 1)`
-	).run();
-	db.prepare(
-		`INSERT INTO verification_tasks VALUES (3, 0, 1, 'Mural', NULL, 1)`
-	).run(); // is_real_commitment = 0 → must be excluded
 	return db;
 }
 
 describe('readSites', () => {
-	it('emits one feature per application, filtered to real+publicly-checkable conditions only', () => {
+	it('emits one feature per application, filtered to physically-verifiable conditions only', () => {
 		const { features, misses } = readSites(fixtureDb(), {});
 		expect(misses).toEqual([]);
 		expect(features).toHaveLength(1);
 		expect(features[0].properties.conditions).toHaveLength(1);
 		const c = features[0].properties.conditions[0];
 		expect(c.type).toBe('landscaping');
-		expect(c.feature).toBe('Street trees');
+		expect(c.feature).toBe('Street trees'); // from conditions.title
+		expect(c.prompt).toBe('Are there new street trees?'); // cleanPrompt(street_visibility)
+		expect(c.description).toBe('Plant new street trees along the Spadina Avenue frontage.'); // physicality
 		expect(c.source).toBe('staff_report_condition');
 	});
 });
